@@ -1,0 +1,393 @@
+---
+title: "Installation Guide"
+description: "Detailed installation instructions for LNKD on Windows, macOS, and Linux"
+---
+
+## System Requirements
+
+<CardGroup cols={3}>
+  <Card title="Python 3.7+" icon="python">
+    Required
+  </Card>
+  <Card title="4 GB RAM" icon="memory">
+    Minimum
+  </Card>
+  <Card title="Cross-Platform" icon="laptop">
+    Windows, macOS, Linux
+  </Card>
+</CardGroup>
+
+---
+
+## Installation Methods
+
+<Tabs>
+  <Tab title="pip (Recommended)">
+    ### Using pip
+
+    <Steps>
+      <Step title="Clone Repository">
+        ```bash
+        git clone https://github.com/sdonglab/LNKD.git
+        cd LNKD
+        ```
+      </Step>
+
+      <Step title="Install Dependencies">
+        ```bash
+        pip install -r requirements.txt
+        ```
+      </Step>
+
+      <Step title="Verify Installation">
+        ```bash
+        python3 -c "from pair_prediction.tools.pdb import PDB; print('Success!')"
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="conda">
+    ### Using Conda
+
+    <Steps>
+      <Step title="Clone Repository">
+        ```bash
+        git clone https://github.com/sdonglab/LNKD.git
+        cd LNKD
+        ```
+      </Step>
+
+      <Step title="Create Conda Environment">
+        ```bash
+        conda create -n lnkd python=3.9
+        conda activate lnkd
+        ```
+      </Step>
+
+      <Step title="Install Dependencies">
+        ```bash
+        conda install --file requirements.txt
+        ```
+      </Step>
+
+      <Step title="Verify Installation">
+        ```bash
+        python -c "from pair_prediction.tools.pdb import PDB; print('Success!')"
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="virtualenv">
+    ### Using virtualenv
+
+    <Steps>
+      <Step title="Clone Repository">
+        ```bash
+        git clone https://github.com/sdonglab/LNKD.git
+        cd LNKD
+        ```
+      </Step>
+
+      <Step title="Create Virtual Environment">
+        <CodeGroup>
+          ```bash Linux/macOS
+          python3 -m venv lnkd-env
+          source lnkd-env/bin/activate
+          ```
+
+          ```powershell Windows
+          python -m venv lnkd-env
+          lnkd-env\Scripts\activate
+          ```
+        </CodeGroup>
+      </Step>
+
+      <Step title="Install Dependencies">
+        ```bash
+        pip install -r requirements.txt
+        ```
+      </Step>
+
+      <Step title="Verify Installation">
+        ```bash
+        python -c "from pair_prediction.tools.pdb import PDB; print('Success!')"
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+---
+
+## Dependencies
+
+LNKD requires the following Python packages:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| **numpy** | ≥1.19.0 | Numerical array operations |
+| **scikit-learn** | ≥0.24.0 | KD-tree spatial data structure |
+| **scipy** | ≥1.6.0 | Scientific computing utilities |
+
+<Accordion title="Full requirements.txt content">
+  ```text
+  numpy>=1.19.0
+  scikit-learn>=0.24.0
+  scipy>=1.6.0
+  ```
+</Accordion>
+
+---
+
+## Platform-Specific Instructions
+
+### Linux
+
+<Steps>
+  <Step title="Install Python 3.7+">
+    ```bash
+    # Ubuntu/Debian
+    sudo apt update
+    sudo apt install python3 python3-pip
+
+    # Fedora/RHEL
+    sudo dnf install python3 python3-pip
+    ```
+  </Step>
+
+  <Step title="Clone and Install">
+    ```bash
+    git clone https://github.com/sdonglab/LNKD.git
+    cd LNKD
+    pip3 install -r requirements.txt
+    ```
+  </Step>
+</Steps>
+
+### macOS
+
+<Steps>
+  <Step title="Install Homebrew (if needed)">
+    ```bash
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    ```
+  </Step>
+
+  <Step title="Install Python 3">
+    ```bash
+    brew install python3
+    ```
+  </Step>
+
+  <Step title="Clone and Install">
+    ```bash
+    git clone https://github.com/sdonglab/LNKD.git
+    cd LNKD
+    pip3 install -r requirements.txt
+    ```
+  </Step>
+</Steps>
+
+### Windows
+
+<Tip>
+  LNKD works natively on Windows with Python 3.7+. No WSL required!
+</Tip>
+
+<Steps>
+  <Step title="Install Python">
+    Download Python from [python.org](https://www.python.org/downloads/)
+
+    **Important**: Check "Add Python to PATH" during installation
+  </Step>
+
+  <Step title="Install Git (if needed)">
+    Download Git from [git-scm.com](https://git-scm.com/download/win)
+  </Step>
+
+  <Step title="Clone and Install LNKD">
+    Open Command Prompt or PowerShell:
+    ```powershell
+    git clone https://github.com/sdonglab/LNKD.git
+    cd LNKD
+    pip install -r requirements.txt
+    ```
+  </Step>
+
+  <Step title="Verify Installation">
+    ```powershell
+    python -c "from pair_prediction.tools.pdb import PDB; print('Success!')"
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Verification
+
+After installation, verify LNKD is working correctly:
+
+### Basic Import Test
+
+<CodeGroup>
+  ```bash Linux/macOS
+  python3 -c "from pair_prediction.tools.pdb import PDB; print('PDB class loaded')"
+  python3 -c "from sklearn.neighbors import KDTree; print('KD-tree available')"
+  python3 -c "import numpy as np; print('NumPy version:', np.__version__)"
+  ```
+
+  ```powershell Windows
+  python -c "from pair_prediction.tools.pdb import PDB; print('PDB class loaded')"
+  python -c "from sklearn.neighbors import KDTree; print('KD-tree available')"
+  python -c "import numpy as np; print('NumPy version:', np.__version__)"
+  ```
+</CodeGroup>
+
+Expected output:
+```
+PDB class loaded
+KD-tree available
+NumPy version: 1.XX.X
+```
+
+### Run Example Prediction
+
+<CodeGroup>
+  ```bash Linux/macOS
+  cd LNKD
+  python3 ./pair_prediction/predict_for_single_surfactant.py \
+      ./example/input/1-PSA_MINP_build1_round2_pair_opt.pdb \
+      ./example/input/core_reactive.txt \
+      -core_QR 10 -core_W 0.03 \
+      ./example/input/sur_reactive.txt \
+      -sur_QR 15 -sur_W 0.03 \
+      -o ./example/output/
+  ```
+
+  ```powershell Windows
+  cd LNKD
+  python ./pair_prediction/predict_for_single_surfactant.py ./example/input/1-PSA_MINP_build1_round2_pair_opt.pdb ./example/input/core_reactive.txt -core_QR 10 -core_W 0.03 ./example/input/sur_reactive.txt -sur_QR 15 -sur_W 0.03 -o ./example/output/
+  ```
+</CodeGroup>
+
+If this completes successfully and creates output files in `./example/output/`, installation is verified.
+
+---
+
+## Optional: Visualization Tools
+
+To visualize predicted pairs, install PyMOL:
+
+<Tabs>
+  <Tab title="Linux">
+    ```bash
+    # Ubuntu/Debian
+    sudo apt install pymol
+
+    # Fedora
+    sudo dnf install pymol
+    ```
+  </Tab>
+
+  <Tab title="macOS">
+    ```bash
+    brew install pymol
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    Download from [PyMOL.org](https://pymol.org/)
+  </Tab>
+</Tabs>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="pip: command not found">
+    **Solution**: Install pip
+    ```bash
+    # Linux
+    sudo apt install python3-pip
+
+    # macOS
+    python3 -m ensurepip --upgrade
+    ```
+  </Accordion>
+
+  <Accordion title="Permission denied when installing">
+    **Solution**: Use `--user` flag or virtual environment
+    ```bash
+    pip install --user -r requirements.txt
+    ```
+
+    Or create a virtual environment (recommended):
+    <CodeGroup>
+      ```bash Linux/macOS
+      python3 -m venv lnkd-env
+      source lnkd-env/bin/activate
+      pip install -r requirements.txt
+      ```
+
+      ```powershell Windows
+      python -m venv lnkd-env
+      lnkd-env\Scripts\activate
+      pip install -r requirements.txt
+      ```
+    </CodeGroup>
+  </Accordion>
+
+  <Accordion title="scikit-learn installation fails">
+    **Possible causes:**
+    - Missing system dependencies (gcc, g++, gfortran)
+
+    **Solution**:
+    ```bash
+    # Ubuntu/Debian
+    sudo apt install build-essential gfortran
+
+    # macOS
+    xcode-select --install
+    ```
+
+    Then retry:
+    ```bash
+    pip install scikit-learn
+    ```
+  </Accordion>
+
+  <Accordion title="ModuleNotFoundError: No module named 'pair_prediction'">
+    **Cause**: Not running from LNKD repository root
+
+    **Solution**: Navigate to repository root
+    ```bash
+    cd /path/to/LNKD
+    python3 ./pair_prediction/predict_for_single_surfactant.py ...
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+    Run your first prediction
+  </Card>
+
+  <Card title="First Prediction" icon="play" href="/first-prediction">
+    Learn to define reactive atoms for your system
+  </Card>
+
+  <Card title="API Reference" icon="code" href="/developer/api/api-predict-bonds">
+    Use LNKD programmatically
+  </Card>
+
+  <Card title="GitHub Issues" icon="github" href="https://github.com/sdonglab/LNKD/issues">
+    Report installation problems
+  </Card>
+</CardGroup>

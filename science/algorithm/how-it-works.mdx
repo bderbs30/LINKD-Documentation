@@ -1,0 +1,516 @@
+---
+title: "How LNKD Works"
+description: "Step-by-step algorithm walkthrough with code and flowcharts"
+---
+
+## Algorithm Overview
+
+LNKD predicts cross-linking bonds through a 10-step process combining spatial queries, probabilistic scoring, and greedy selection.
+
+<Tabs>
+  <Tab title="Visual Flow">
+    ```mermaid
+    flowchart TD
+        A[PDB File + Reactive Atoms] --> B[Parse Structure]
+        B --> C[Filter to Reactive Atoms Only]
+        C --> D[Build KD-Tree from 3D Coordinates]
+        D --> E[Radius Query for Each Atom]
+        E --> F[Calculate Bond Potentials]
+        F --> G[Build Max Heap]
+        G --> H{Best pair P > 0.001?}
+        H -->|Yes| I[Select Pair]
+        I --> J[Mark Atoms as Bonded]
+        J --> K[Update Chain States]
+        K --> L[Find Affected Pairs]
+        L --> M[Recalculate Their Potentials]
+        M --> G
+        H -->|No| N[Output: Bonded Pairs]
+        H -->|No| O[Output: Unpaired Radicals]
+    ```
+  </Tab>
+
+  <Tab title="Pseudocode">
+    **Algorithm 1: LNKD Cross-Linking Prediction**
+
+    </Tab>
+</Tabs>
+
+---
+
+## Step-by-Step Walkthrough
+
+### Step 1: Parse Reactive Atom Definitions
+
+**Purpose**: Identify which atoms in the PDB can participate in cross-linking.
+
+**Input**: User-provided reactive atom file
+
+```python
+# From predict_bonds.py:50-60
+def get_reactive_str_representation(self, reactive_file):
+    """
+    Parse reactive atom definitions from file.
+
+    Format:
+        ATOM_NAME RESIDUE_NAME
+
+    Example:
+        CU DVO
+        CV DVO
+    """
+    reactive_atoms_dict = {}
+    with open(reactive_file) as f:
+        for line in f:
+            atom_name, residue = line.strip().split()
+            reactive_atoms_dict[atom_name] = residue
+    return reactive_atoms_dict
+```
+
+**Example**:
+```python
+reactive_atoms_dict = {
+    'CU': 'DVO',
+    'CV': 'DVO',
+    'C14': 'SUR',
+    'C16': 'SUR'
+}
+```
+
+---
+
+### Step 2: Filter Structure to Reactive Atoms
+
+**Purpose**: Extract only reactive atoms from full PDB structure.
+
+**Code** (`predict_bonds.py:62-75`):
+
+```python
+def init_reactive_atoms(self, reactive_atoms_dict):
+    """
+    Filter PDB atoms to only reactive ones.
+
+    Stores result in self.reactive_atoms list.
+    """
+    self.reactive_atoms = []
+
+    for chain_id, chain in self.pdb.chains.items():
+        for atom_name, atom in chain.atoms.items():
+            # Check if atom matches reactive definition
+            if (atom_name in reactive_atoms_dict and
+                chain.chain_type == reactive_atoms_dict[atom_name]):
+                self.reactive_atoms.append(atom)
+```
+
+**Result**: List of 500-1000 reactive Atom objects (out of 10,000+ total atoms).
+
+---
+
+### Step 3: Convert to Coordinate Array
+
+**Purpose**: Prepare data for KD-tree construction.
+
+**Code** (`utils.py:15-25`):
+
+```python
+def atoms_to_coords(atom_list):
+    """
+    Convert list of Atom objects to Nx3 coordinate array.
+
+    Returns:
+        np.ndarray of shape (n_atoms, 3)
+    """
+    coords = np.array([
+        atom.coords for atom in atom_list
+    ])
+    return coords
+```
+
+**Result**: NumPy array `[[x1, y1, z1], [x2, y2, z2], ...]`
+
+---
+
+### Step 4: Build KD-Tree (KEY OPTIMIZATION)
+
+**Purpose**: Enable O(log n) spatial queries instead of O(n) linear search.
+
+**Code** (`predict_bonds.py:90-95`):
+
+```python
+from sklearn.neighbors import KDTree
+
+# Build KD-tree from reactive atom coordinates
+reactive_bonding_coords = atoms_to_coords(self.reactive_atoms)
+
+tree = KDTree(reactive_bonding_coords, leaf_size=30)
+```
+
+**Parameters**:
+- `leaf_size=30`: Optimization parameter (tree switches to brute force below 30 points)
+
+<Accordion title="What does sklearn's KDTree do internally?">
+  1. **Median split**: Find median coordinate along alternating axes (x, y, z)
+  2. **Recursive partition**: Split points into left/right subtrees
+  3. **Tree construction**: Continue until leaf nodes contain ≤ 30 points
+
+  **Time**: O(n log n) to build
+
+  **Result**: Binary tree where each node represents a partition of 3D space.
+</Accordion>
+
+---
+
+### Step 5: Radius Query - Find Neighbor Candidates
+
+**Purpose**: For each atom, find all other atoms within bonding distance.
+
+**Code** (`predict_bonds.py:100-105`):
+
+```python
+# Query radius for all atoms simultaneously (vectorized)
+indices, distances = tree.query_radius(
+    reactive_bonding_coords,
+    r=self.query_radius,  # e.g., 10 angstroms
+    return_distance=True
+)
+```
+
+**Output**:
+- `indices[i]` = list of atom indices within radius of atom i
+- `distances[i]` = corresponding distances
+
+**Example**:
+```python
+# For atom 59:
+indices[59] = [59, 1054, 4602, 5222, ...]  # indices of nearby atoms
+distances[59] = [0.0, 3.2, 4.7, 8.9, ...]   # distances in angstroms
+```
+
+**Complexity**: O(n log n) for all queries (vs O(n²) brute force).
+
+---
+
+### Step 6: Filter Same-Chain and Self-References
+
+**Purpose**: Enforce chemical constraints.
+
+**Code** (`utils.py:45-70`):
+
+```python
+def remove_1st_and_chain(indices, distances, reactive_atoms):
+    """
+    Remove:
+    1. Self-references (index 0 in each list)
+    2. Atoms on the same polymer chain
+    """
+    indices_filtered = []
+    distances_filtered = []
+
+    for i, (idx_list, dist_list) in enumerate(zip(indices, distances)):
+        atom_i = reactive_atoms[i]
+        chain_i = atom_i.chain_id
+
+        valid_idx = []
+        valid_dist = []
+
+        for j, (idx, dist) in enumerate(zip(idx_list, dist_list)):
+            if j == 0:  # Skip self
+                continue
+
+            atom_j = reactive_atoms[idx]
+            if atom_j.chain_id == chain_i:  # Skip same chain
+                continue
+
+            valid_idx.append(idx)
+            valid_dist.append(dist)
+
+        indices_filtered.append(valid_idx)
+        distances_filtered.append(valid_dist)
+
+    return indices_filtered, distances_filtered
+```
+
+**Result**: Clean candidate pairs respecting inter-chain-only constraint.
+
+---
+
+### Step 7: Initialize Potential Pairs with Bond Potentials
+
+**Purpose**: Calculate initial probability scores for all candidate pairs.
+
+**Code** (`predict_bonds.py:130-155`):
+
+```python
+def initialize_potential_pairs(self, indices, distances):
+    """
+    Create Pair objects with bond potentials.
+    """
+    potential_pairs = []
+
+    for i, (idx_list, dist_list) in enumerate(zip(indices, distances)):
+        atom_i = self.reactive_atoms[i]
+
+        for idx, dist in zip(idx_list, dist_list):
+            atom_j = self.reactive_atoms[idx]
+
+            # Create pair object
+            pair = Pair(atom_i, atom_j, distance=dist)
+
+            # Calculate bond potential
+            pair.probability = self.calculate_bond_potential(pair)
+
+            # Add to list if valid (P > 0)
+            if pair.probability > 0:
+                potential_pairs.append(pair)
+
+    return potential_pairs
+```
+
+**Result**: List of ~10,000-50,000 Pair objects with probability scores.
+
+---
+
+### Step 8: Build Max Heap
+
+**Purpose**: Efficiently access highest-probability pair.
+
+**Code** (`predict_bonds.py:160-170`):
+
+```python
+import heapq
+
+def init_prob_heap(self):
+    """
+    Build max heap from potential pairs.
+
+    Python's heapq is a min-heap, so negate probabilities.
+    """
+    heap = [
+        (-pair.probability, pair_index, pair)
+        for pair_index, pair in enumerate(self.potential_pairs)
+    ]
+
+    heapq.heapify(heap)
+
+    return heap
+```
+
+**Heap structure**: Tuples of `(-probability, index, pair_object)`
+- Negative probability converts min-heap to max-heap behavior
+
+**Time**: O(n) to heapify
+
+---
+
+### Step 9: Greedy Selection Loop (CORE ALGORITHM)
+
+**Purpose**: Iteratively select best pairs until no good candidates remain.
+
+**Code** (`predict_bonds.py:200-250`):
+
+```python
+def bond_selection_loop(self):
+    """
+    Main greedy selection loop.
+    """
+    while self.probability_heap:
+        # Get highest probability pair
+        neg_prob, pair_idx, best_pair = heapq.heappop(self.probability_heap)
+        probability = -neg_prob
+
+        # Termination condition
+        if probability < 0.001:
+            break
+
+        # Check if pair is still valid (atoms might be bonded by now)
+        if (best_pair.atom1.is_bonded_external or
+            best_pair.atom2.is_bonded_external):
+            continue  # Skip this pair
+
+        # ACCEPT PAIR
+        self.add_pair_pdb(best_pair)  # Add to results
+
+        # Mark atoms as bonded
+        best_pair.atom1.is_bonded_external = True
+        best_pair.atom2.is_bonded_external = True
+
+        # Update chain states
+        chain1 = self.pdb.chains[best_pair.atom1.chain_id]
+        chain2 = self.pdb.chains[best_pair.atom2.chain_id]
+        chain1.add_bonded_chain(chain2.chain_id)
+        chain2.add_bonded_chain(chain1.chain_id)
+
+        # Find pairs affected by this bonding
+        affected_pairs = self.find_affected_pairs(best_pair)
+
+        # Recalculate their probabilities
+        for affected_pair in affected_pairs:
+            old_prob = affected_pair.probability
+            new_prob = self.calculate_bond_potential(affected_pair)
+
+            if new_prob != old_prob:
+                # Update in heap
+                affected_pair.probability = new_prob
+                heapq.heappush(
+                    self.probability_heap,
+                    (-new_prob, len(self.potential_pairs), affected_pair)
+                )
+```
+
+<Accordion title="Why check is_bonded_external again?">
+  **Stale pairs**: When we pop a pair from the heap, it might have been created before one of its atoms bonded to a different atom.
+
+  **Example**:
+  1. Heap has pairs A-B (P=0.95) and A-C (P=0.90)
+  2. Pop and accept A-B
+  3. Mark A as bonded
+  4. Later pop A-C
+  5. Check: A is now bonded → skip A-C
+
+  This lazy deletion approach is more efficient than immediately removing all affected pairs.
+</Accordion>
+
+---
+
+### Step 10: Handle Unpaired Radicals
+
+**Purpose**: Identify atoms that didn't find bonding partners (core only).
+
+**Code** (`predict_polymerization.py:63-90`):
+
+```python
+def find_radicals(self, reactive_atoms_dict):
+    """
+    For radical polymerization: find unpaired vinyl carbons.
+
+    Vinyl carbons come in pairs (C=C double bond).
+    If one is bonded but its partner isn't, the partner is a radical.
+    """
+    for chain_id, chain in self.pdb.chains.items():
+        for atom_name, atom in chain.atoms.items():
+            if atom_name not in reactive_atoms_dict:
+                continue
+
+            # Find the paired vinyl carbon (CU pairs with CV)
+            partner_name = 'CV' if atom_name == 'CU' else 'CU'
+            partner = chain.atoms.get(partner_name)
+
+            if not partner:
+                continue
+
+            # Check if bonding is asymmetric
+            if atom.is_bonded_external and not partner.is_bonded_external:
+                self.pdb.add_radical(partner)
+```
+
+**Result**: List of radical atom serial numbers needing H-saturation.
+
+---
+
+## Detailed Iteration Example
+
+Let's trace through 3 iterations with a small example:
+
+### Initial State
+
+**Reactive atoms**: 10 atoms (A-J) on 5 chains
+**Candidate pairs after KD-tree query**: 20 pairs
+**Initial heap** (top 5):
+
+```
+1. (I-J, P=0.95)  - distance 3.0 Å, both chains isolated
+2. (A-B, P=0.92)  - distance 3.2 Å, both chains isolated
+3. (C-D, P=0.88)  - distance 3.5 Å, one chain has 1 bond
+4. (E-F, P=0.85)  - distance 3.8 Å, both chains isolated
+5. (G-H, P=0.81)  - distance 4.2 Å, both chains isolated
+```
+
+### Iteration 1
+
+**Pop**: (I-J, P=0.95)
+**Action**:
+- Mark I and J as bonded
+- Update chain states
+- Find affected pairs: (I-K), (J-L) were in heap
+- Recalculate: Both now P=0 (I and J already bonded)
+
+**New heap top**:
+```
+1. (A-B, P=0.92)
+2. (C-D, P=0.88)
+3. (E-F, P=0.85)
+4. (G-H, P=0.81)
+5. (A-C, P=0.79)
+```
+
+### Iteration 2
+
+**Pop**: (A-B, P=0.92)
+**Action**:
+- Mark A and B as bonded
+- Update chain states: Chain₁ and Chain₂ now bonded
+- Affected pairs: (A-C), (A-D), (B-E)
+- Recalculate:
+  - (A-C): P=0 (A bonded)
+  - (A-D): P=0 (A bonded)
+  - (B-E): P=0 (B bonded)
+
+**New heap top**:
+```
+1. (C-D, P=0.88)
+2. (E-F, P=0.85)
+3. (G-H, P=0.81)
+```
+
+### Iteration 3
+
+**Pop**: (C-D, P=0.88)
+**Action**:
+- Mark C and D as bonded
+- Continue...
+
+**Termination**: When heap is empty or top P < 0.001
+
+---
+
+## Complexity Analysis by Step
+
+| Step | Operation | Complexity |
+|------|-----------|------------|
+| 1-3 | Parse & filter | O(n) |
+| 4 | Build KD-tree | O(n log n) |
+| 5 | Radius queries | O(n log n) |
+| 6 | Filter same-chain | O(kn) |
+| 7 | Calculate potentials | O(kn) |
+| 8 | Build heap | O(kn) |
+| 9 | Selection loop | O(m log n) |
+| 10 | Find radicals | O(n) |
+| **Total** | **O(n log n + kn + m log n)** | **≈ O(n log n)** |
+
+Where:
+- n = number of reactive atoms (e.g., 780)
+- k = average neighbors per atom (10-20 with r=10 Å)
+- m = number of pairs selected (≈ n/2)
+
+This logarithmic complexity provides significant advantages as system size increases.
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Algorithm Concepts" icon="lightbulb" href="/science/algorithm/algorithm-concepts">
+    Review KD-trees and max heaps
+  </Card>
+
+  <Card title="Bond Potential" icon="function" href="/science/algorithm/bond-potential">
+    Understand the scoring function
+  </Card>
+
+  <Card title="Code Reference" icon="code" href="/developer/api/api-predict-bonds">
+    Full API documentation
+  </Card>
+
+  <Card title="Try It" icon="rocket" href="/quickstart">
+    Run the algorithm on example data
+  </Card>
+</CardGroup>

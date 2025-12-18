@@ -1,0 +1,211 @@
+---
+title: "The Problem Space"
+description: "Understanding the computational challenge of cross-linking prediction"
+---
+
+## Cross-Linked Polymers in Materials Science
+
+Cross-linked polymers are foundational materials in modern chemistry and engineering:
+
+<CardGroup cols={2}>
+  <Card title="Epoxy Resins" icon="droplet">
+    Adhesives, coatings, composite matrices
+  </Card>
+  <Card title="Hydrogels" icon="syringe">
+    Drug delivery, tissue engineering, contact lenses
+  </Card>
+  <Card title="Thermosets" icon="fire">
+    Heat-resistant plastics, electronics, automotive parts
+  </Card>
+  <Card title="Molecularly Imprinted Polymers" icon="dna">
+    Sensors, separation, catalysis, artificial antibodies
+  </Card>
+</CardGroup>
+
+All these materials share a common feature: **covalent cross-links** connecting polymer chains into a 3D network.
+
+---
+
+## The Computational Challenge
+
+Predicting which atoms will cross-link is surprisingly difficult:
+
+### 1. Combinatorial Explosion
+
+For **n** reactive atoms, there are **n(n-1)/2** possible pairs.
+
+| Reactive Atoms | Possible Pairs |
+|----------------|----------------|
+| 100 | 4,950 |
+| 500 | 124,750 |
+| 780 (typical MINP) | 304,590 |
+| 1000 | 499,500 |
+
+<Tip>
+  Traditional pairwise comparison requires evaluating ALL possible pairs - this is O(n²) complexity.
+</Tip>
+
+### 2. Spatial Constraints
+
+Not all pairs are physically plausible:
+- Atoms must be within bonding distance (~2-5 Å for most bonds)
+- Spatial orientation matters (approach angle, steric hindrance)
+- Many pairs are separated by large distances and can be eliminated
+
+**The insight**: Most comparisons are wasted on impossible pairs.
+
+---
+
+## Why Prediction Matters
+
+### Design Iteration
+
+Materials scientists need to:
+1. Design monomer composition
+2. Predict cross-linked structure
+3. Simulate material properties
+4. Refine design based on results
+
+**Bottleneck**: Step 2 (cross-linking prediction)
+
+If prediction takes hours, iteration is impractical. Fast prediction enables computational materials design.
+
+### Accuracy Requirements
+
+Cross-linking patterns dramatically affect:
+- Mechanical properties (stiffness, toughness)
+- Swelling behavior
+- Binding site geometry (for MINPs)
+- Degradation pathways
+
+Inaccurate predictions lead to failed experimental validation.
+
+---
+
+## Chemical Constraints
+
+Valid cross-linking predictions must respect chemistry:
+
+### Constraint 1: Same-Chain Exclusion
+
+Atoms on the same polymer chain typically cannot cross-link (would create loops).
+
+<Warning>
+  Intra-chain bonding is chemically disfavored in most polymer systems. LNKD enforces inter-chain bonding only.
+</Warning>
+
+### Constraint 2: Bonding State
+
+Each reactive site can typically form only ONE external bond:
+- Once bonded, the site is no longer reactive
+- Radical polymerization: one C-C bond per vinyl group
+- Click chemistry: one triazole per azide/alkyne pair
+
+### Constraint 3: Connectivity Limits
+
+Chains have finite bonding capacity:
+- Too many bonds on one chain → clustering
+- Too few → isolated chains (poor network connectivity)
+
+LNKD's isolatedness term promotes uniform cross-linking.
+
+---
+
+## The Probabilistic Nature
+
+Cross-linking is inherently stochastic:
+- Multiple valid bonding configurations exist
+- Final structure depends on reaction kinetics, diffusion, local environment
+- Exact prediction is impossible (and unnecessary)
+
+**LNKD's approach**: Predict a plausible, chemically valid configuration that:
+- Achieves high coverage (88-95% of reactive atoms paired)
+- Respects all constraints
+- Produces a realistic 3D network topology
+
+---
+
+## Existing Approaches and Limitations
+
+<Tabs>
+  <Tab title="Brute Force">
+    **Method**: Check all n² pairs, select best matches
+
+    **Limitations**:
+    - O(n²) complexity
+    - Very slow for n>500
+    - Doesn't scale to realistic systems
+  </Tab>
+
+  <Tab title="Iterative MD">
+    **Method**: Gradually add bonds via MD simulation cycles (PXLink, HTPolyNet)
+
+    **Advantages**: Captures dynamics
+
+    **Limitations**:
+    - Hours to days of computation
+    - Still requires pairwise comparisons
+    - Overkill for initial structure generation
+  </Tab>
+
+  <Tab title="Reactive Force Fields">
+    **Method**: Simulate full reaction mechanisms (ReaxFF)
+
+    **Advantages**: Highest physical accuracy
+
+    **Limitations**:
+    - Extremely expensive (days to weeks)
+    - Parameterization complex
+    - Not practical for routine use
+  </Tab>
+
+  <Tab title="Template Matching">
+    **Method**: Use predefined reaction templates (REACTER)
+
+    **Advantages**: Fast for known reactions
+
+    **Limitations**:
+    - Requires template library
+    - Limited to pre-defined chemistries
+    - Still requires spatial searching
+  </Tab>
+</Tabs>
+
+---
+
+## LNKD's Solution
+
+LNKD addresses these challenges through:
+
+1. **Spatial Data Structures**: KD-trees eliminate distant pairs → O(n log n)
+2. **Chemical Constraint Enforcement**: Built into bond potential calculation
+3. **Greedy Selection**: Max heap ensures efficient pair selection
+4. **Heuristic Scoring**: Bond potential balances distance and uniformity
+
+**Result**: Significant computational advantages through O(n log n) complexity while maintaining chemical validity and high coverage.
+
+<Tip>
+  For measured speedup factors and empirical runtime benchmarks, see the [published paper](https://pubs.acs.org/doi/10.1021/acs.jcim.5c01376).
+</Tip>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Why Use LNKD?" icon="chart-line" href="/science/why-lnkd">
+    Performance benchmarks and validation results
+  </Card>
+
+  <Card title="Algorithm Concepts" icon="lightbulb" href="/science/algorithm/algorithm-concepts">
+    How KD-trees and max heaps enable efficiency
+  </Card>
+
+  <Card title="How It Works" icon="gear" href="/science/algorithm/how-it-works">
+    Step-by-step algorithm walkthrough
+  </Card>
+
+  <Card title="MIP Background" icon="flask" href="/science/chemistry/mip-background">
+    Why MINPs need efficient cross-linking prediction
+  </Card>
+</CardGroup>

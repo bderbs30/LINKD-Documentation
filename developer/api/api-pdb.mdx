@@ -1,0 +1,190 @@
+---
+title: "API: PDB Class"
+description: "Complete reference for PDB structure container"
+---
+
+## Class Definition
+
+**Location**: `pair_prediction/tools/pdb.py:20-180`
+
+**Purpose**: Top-level container representing entire molecular structure
+
+```python
+class PDB:
+    """Container for PDB structure with chains, atoms, and predictions."""
+```
+
+---
+
+## Constructor
+
+```python
+def __init__(self, filename):
+    """
+    Args:
+        filename (str): Path to PDB file
+
+    Attributes:
+        filename (str): Original file path
+        chains (dict): {chain_id: Chain object}
+        pairs (list): Selected Pair objects
+        radicals (list): Unpaired Atom objects (polymerization)
+    """
+```
+
+**Example**:
+```python
+pdb = PDB('structure.pdb')
+```
+
+---
+
+## Methods
+
+### parse()
+
+```python
+def parse(self):
+    """
+    Parse PDB file and populate chains/atoms.
+
+    PDB format parsed:
+        ATOM/HETATM lines only
+        Columns: serial, name, resName, chainID, coords
+
+    Returns:
+        None (modifies self.chains in-place)
+
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        ValueError: If PDB format invalid
+    """
+```
+
+**Example**:
+```python
+pdb = PDB('micelle.pdb')
+pdb.parse()
+
+print(f"Chains: {len(pdb.chains)}")  # 120
+for chain_id, chain in pdb.chains.items():
+    print(f"  {chain_id}: {len(chain.atoms)} atoms")
+```
+
+---
+
+### add_pair()
+
+```python
+def add_pair(self, pair):
+    """
+    Add bonded pair to results.
+
+    Args:
+        pair (Pair): Pair object
+
+    Side effects:
+        - Appends to self.pairs
+        - Updates atom bonding states
+        - Updates chain connectivity
+    """
+```
+
+---
+
+### add_radical()
+
+```python
+def add_radical(self, atom):
+    """
+    Track unpaired radical (polymerization only).
+
+    Args:
+        atom (Atom): Unpaired atom
+
+    Returns:
+        None (appends to self.radicals)
+    """
+```
+
+---
+
+### write_pairs()
+
+```python
+def write_pairs(self, output_file):
+    """
+    Write bonded pairs to file.
+
+    Format: atom1_serial atom2_serial (one per line)
+
+    Args:
+        output_file (str): Output path
+    """
+```
+
+**Example output**:
+```
+59 1054
+4602 5222
+137 249
+```
+
+---
+
+### write_radicals()
+
+```python
+def write_radicals(self, output_file):
+    """
+    Write radicals to file.
+
+    Format: atom_serial (one per line)
+
+    Args:
+        output_file (str): Output path
+    """
+```
+
+**Example output**:
+```
+4502
+4642
+4704
+```
+
+---
+
+## Complete Example
+
+```python
+# Load and parse
+pdb = PDB('micelle_relaxed.pdb')
+pdb.parse()
+
+# Access structure
+for chain in pdb.chains.values():
+    if chain.chain_type == 'DVO':
+        print(f"DVB chain {chain.chain_id}: {len(chain.atoms)} atoms")
+
+# After prediction
+pdb.write_pairs('pairs.txt')
+pdb.write_radicals('radicals.txt')
+
+print(f"Total pairs: {len(pdb.pairs)}")
+print(f"Total radicals: {len(pdb.radicals)}")
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API: Atom & Chain" icon="atom" href="/developer/api/api-atom-chain">
+    Complete Atom and Chain class reference
+  </Card>
+
+  <Card title="Core Classes" icon="cube" href="/developer/architecture/core-classes">
+    Detailed class relationships
+  </Card>
+</CardGroup>

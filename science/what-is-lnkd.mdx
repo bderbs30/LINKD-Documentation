@@ -1,0 +1,154 @@
+---
+title: "What is LNKD?"
+description: "High-level explanation of the LNKD algorithm for researchers"
+---
+
+## Definition
+
+**LNKD** (Linking Nodes in KD-trees) is a computational algorithm that predicts which reactive atoms in a polymer system will form covalent cross-links during polymerization.
+
+The name reflects its core innovation: using **KD-tree spatial data structures** to efficiently link reactive nodes (atoms) in 3D space.
+
+---
+
+## The Core Innovation
+
+Traditional cross-linking prediction methods compare every reactive atom to every other atom - an O(n²) operation that becomes prohibitively slow for large systems.
+
+**LNKD's breakthrough**: Using KD-trees to reduce this to **O(n log n)** complexity.
+
+### Complexity Comparison
+
+| Approach | Complexity | For 780 atoms |
+|----------|------------|---------------|
+| Brute Force | O(n²) | ~608,400 comparisons |
+| LNKD (KD-tree) | O(n log n) | ~7,500 operations |
+
+<Tip>
+  LNKD's logarithmic complexity provides significant computational advantages over quadratic pairwise methods. See the [published paper](https://pubs.acs.org/doi/10.1021/acs.jcim.5c01376) for measured speedup factors.
+</Tip>
+
+---
+
+## Target Application
+
+LNKD was specifically designed for **Molecularly Imprinted Nanoparticles (MINPs)** - synthetic polymers with designed binding sites that mimic antibody recognition.
+
+### Why MINPs Need Efficient Cross-Linking Prediction
+
+MINPs require:
+- **Dual cross-linking chemistry**: Both surface (click chemistry) and core (radical polymerization)
+- **Large systems**: Typically 500-1000+ reactive atoms
+- **Iterative design**: Multiple prediction cycles during optimization
+
+Traditional methods create a computational bottleneck. LNKD enables practical iterative MINP design.
+
+<CardGroup cols={2}>
+  <Card title="Learn About MINPs" icon="circle-info" href="/science/chemistry/mip-background">
+    Detailed background on molecularly imprinted polymers
+  </Card>
+  <Card title="MINP Workflow" icon="diagram-project" href="/science/workflow/workflow-overview">
+    How LNKD integrates into the complete synthesis protocol
+  </Card>
+</CardGroup>
+
+---
+
+## How It Differs from Other Methods
+
+<AccordionGroup>
+  <Accordion title="vs Brute Force Pairwise Comparison">
+    **Brute force**: Check every atom against every other atom
+    - Complexity: O(n²)
+    - Scales quadratically with system size
+
+    **LNKD**: KD-tree spatial queries + max heap selection
+    - Complexity: O(n log n)
+    - Scales logarithmically - significant advantage for large systems
+  </Accordion>
+
+  <Accordion title="vs Iterative MD Approaches (PXLink, HTPolyNet)">
+    **Iterative MD**: Gradually add bonds via MD simulation cycles
+    - Captures reaction dynamics
+    - Computationally intensive (MD simulation overhead)
+
+    **LNKD**: Direct topology prediction
+    - No dynamics (assumes final bonding pattern)
+    - Much faster due to avoiding iterative MD cycles
+    - Sufficient for MINP structure generation
+  </Accordion>
+
+  <Accordion title="vs Reactive Force Fields (ReaxFF)">
+    **ReaxFF**: Simulate full reaction mechanisms
+    - Highest accuracy for reaction pathways
+    - Extremely computationally expensive (reactive MD)
+
+    **LNKD**: Heuristic bond potential function
+    - Approximates final bonding pattern
+    - Significantly faster (topology prediction vs. full MD)
+    - Ideal for preprocessing MD structures
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Key Features
+
+### 1. Spatial Efficiency
+
+[KD-trees](/science/algorithm/algorithm-concepts#kd-trees) partition 3D space for O(log n) neighbor queries:
+- Only atoms within query radius are considered
+- Eliminates vast majority of impossible pairs
+- Scales efficiently to large systems
+
+### 2. Chemical Constraints
+
+LNKD enforces realistic bonding rules ([full details](/science/algorithm/algorithm-concepts#chemical-constraint-validation)):
+- Atoms on same [chain](/glossary#chain) cannot bond (prevents intra-chain cross-linking)
+- Atoms already bonded externally are excluded
+- Bonding state propagates through chains
+
+### 3. Greedy Selection with Bond Potential
+
+Pairs are selected iteratively based on a [probability score](/science/algorithm/bond-potential):
+- **Distance term**: Prefers atoms near equilibrium bond length (~3 Å)
+- **[Isolatedness](/glossary#isolatedness) term**: Promotes uniform cross-linking
+- **[Max heap](/science/algorithm/algorithm-concepts#priority-queues-max-heap)**: O(1) access to best candidate
+
+### 4. Dual-Chemistry Support
+
+Handles two reaction types simultaneously:
+- **Surface**: Azide-alkyne cycloaddition (click chemistry) - TWO bonds per reaction
+- **Core**: Radical polymerization - ONE bond per reaction
+
+---
+
+## What LNKD Is NOT
+
+<Warning>
+  **LNKD is not a molecular dynamics engine**
+
+  It predicts a static bonding topology. It does NOT:
+  - Simulate reaction kinetics or dynamics
+  - Model polymerization mechanisms
+  - Generate reaction trajectories
+  - Account for activation energies
+</Warning>
+
+LNKD provides an **initial cross-linked structure** for subsequent MD equilibration.
+
+---
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="The Problem Space" icon="lightbulb" href="/science/problem-space">
+    Why cross-linking prediction is challenging
+  </Card>
+  <Card title="Why Use LNKD?" icon="chart-line" href="/science/why-lnkd">
+    Performance benchmarks and validation
+  </Card>
+  <Card title="How It Works" icon="gear" href="/science/algorithm/how-it-works">
+    Detailed algorithm walkthrough
+  </Card>
+</CardGroup>

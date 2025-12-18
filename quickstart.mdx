@@ -1,80 +1,317 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quick Start"
+description: "Install LNKD and run your first cross-linking prediction in 5 minutes"
 ---
 
-## Get started in three steps
-
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+## Prerequisites
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Python 3.7+" icon="python">
+    LNKD requires Python 3.7 or higher
+  </Card>
+  <Card title="NumPy & scikit-learn" icon="cube">
+    Core dependencies for spatial queries
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Tip>
+  LNKD supports Windows, macOS, and Linux. All examples work cross-platform.
+</Tip>
+
+<Warning>
+  **New to MINPs or polymer cross-linking?** Consider reading [MIP Background](/science/chemistry/mip-background) first to understand the chemistry LNKD models. This guide assumes familiarity with polymer networks and cross-linking reactions.
+</Warning>
+
+---
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/sdonglab/LNKD.git
+    cd LNKD
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    <CodeGroup>
+      ```bash pip (Recommended)
+      pip install -r requirements.txt
+      ```
+
+      ```bash conda
+      conda install --file requirements.txt
+      ```
+    </CodeGroup>
+
+    **Core dependencies installed:**
+    - `numpy` - Numerical operations and array handling
+    - `scikit-learn` - KD-tree spatial data structure
+    - `scipy` - Scientific computing utilities
+  </Step>
+
+  <Step title="Verify Installation">
+    <CodeGroup>
+      ```bash Linux/macOS
+      python3 -c "from sklearn.neighbors import KDTree; print('Installation successful!')"
+      ```
+
+      ```powershell Windows
+      python -c "from sklearn.neighbors import KDTree; print('Installation successful!')"
+      ```
+    </CodeGroup>
+
+    Expected output:
+    ```
+    Installation successful!
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Understanding Core vs Surface Cross-Linking
+
+Before running predictions, it's important to understand that LNKD handles two distinct types of cross-linking chemistry:
+
+<Tabs>
+  <Tab title="Surface Cross-Linking">
+    **Chemistry**: Azide-alkyne cycloaddition (click chemistry)
+
+    **Location**: Surfactant molecules forming the nanoparticle outer shell
+
+    **Reactive atoms**:
+    - Azide nitrogens (N₃ groups)
+    - Alkyne carbons (C≡C groups)
+
+    **Purpose**: Creates rigid outer shell to confine the core
+
+    **Bond type**: Forms triazole rings (5-membered heterocycles with 2 N-C bonds)
+
+    <Tip>
+      Surface parameters typically use larger query radius (15 Å) because click chemistry can form bonds over slightly longer distances.
+    </Tip>
+  </Tab>
+
+  <Tab title="Core Cross-Linking">
+    **Chemistry**: Radical polymerization (C-C bond formation)
+
+    **Location**: Cross-linker molecules (like DVB) inside the nanoparticle
+
+    **Reactive atoms**:
+    - Vinyl carbons (C=C double bonds)
+
+    **Purpose**: Densifies the interior network
+
+    **Bond type**: Forms single C-C bonds between radical sites
+
+    <Tip>
+      Core parameters typically use smaller query radius (10 Å) for shorter-range radical coupling reactions.
+    </Tip>
+  </Tab>
+</Tabs>
+
+### Why Two Separate Predictions?
+
+These chemistries happen **sequentially** in experimental MINP synthesis:
+1. **Surface first**: Cross-link the outer shell
+2. **Core second**: Polymerize the interior
+
+LNKD mirrors this process by predicting each chemistry separately with optimized parameters for each reaction type.
+
+<Warning>
+  For non-MINP systems with only one cross-linking chemistry, you can use an empty file for the unused chemistry type. See [Extending Reactions](/developer/extending/extending-reactions) for adding new chemistry types.
+</Warning>
+
+---
+
+## Your First Prediction
+
+LNKD comes with a complete example in the `example/` directory. Let's run it:
+
+<Steps>
+  <Step title="Navigate to the Repository">
+    ```bash
+    cd LNKD
+    ```
+  </Step>
+
+  <Step title="Run the Example Prediction">
+    <CodeGroup>
+      ```bash Linux/macOS
+      python3 ./pair_prediction/predict_for_single_surfactant.py \
+          ./example/input/1-PSA_MINP_build1_round2_pair_opt.pdb \
+          ./example/input/core_reactive.txt \
+          -core_QR 10 \
+          -core_W 0.03 \
+          ./example/input/sur_reactive.txt \
+          -sur_QR 15 \
+          -sur_W 0.03 \
+          -o ./example/output/
+      ```
+
+      ```powershell Windows
+      python ./pair_prediction/predict_for_single_surfactant.py ./example/input/1-PSA_MINP_build1_round2_pair_opt.pdb ./example/input/core_reactive.txt -core_QR 10 -core_W 0.03 ./example/input/sur_reactive.txt -sur_QR 15 -sur_W 0.03 -o ./example/output/
+      ```
+    </CodeGroup>
+
+    <Accordion title="What do these parameters mean?">
+      | Parameter | Value | Meaning |
+      |-----------|-------|---------|
+      | `core_QR` | 10 | **Query Radius** for core: Maximum distance (Angstroms) LNKD searches for potential bonding partners. Atoms farther apart won't be considered. Smaller radius (10 Å) suits short-range radical polymerization. [More →](/first-prediction#query-radius) |
+      | `core_W` | 0.03 | **Isolation Weight** for core: Controls preference for bonding to chains with fewer existing bonds (0.0-1.0). Higher values promote uniform cross-linking. Value of 0.03 provides slight preference while maintaining high coverage. [More →](/first-prediction#isolation-weight) |
+      | `sur_QR` | 15 | Query Radius for surface: Larger than core (15 Å) because click chemistry can form bonds over slightly longer distances than radical polymerization. |
+      | `sur_W` | 0.03 | Isolation Weight for surface: Same principle as core - promotes uniform distribution of surface cross-links. |
+
+      **Why these specific values?** These are recommended starting points based on typical MINP chemistry. Adjust based on your system - see [parameter tuning guide](/first-prediction#choosing-parameters) for details.
+    </Accordion>
+  </Step>
+
+  <Step title="Check the Output">
+    LNKD creates 4 output files in `./example/output/`:
+
+    <CodeGroup>
+      ```bash Linux/macOS
+      ls -l ./example/output/
+      ```
+
+      ```powershell Windows
+      dir ./example/output/
+      ```
+    </CodeGroup>
+
+    **Output files:**
+    - `pair_output.txt` - All predicted pairs (core + surface)
+    - `core_pair_output.txt` - Core cross-linking pairs only
+    - `surface_pair_output.txt` - Surface cross-linking pairs only
+    - `radical_output.txt` - Unpaired radicals needing H-saturation
+  </Step>
+
+  <Step title="Visualize Results (Optional)">
+    Use PyMOL to visualize the predicted bonds:
+
+    ```bash
+    pymol ./example/input/1-PSA_MINP_build1_round2_pair_opt.pdb
+    ```
+
+    In PyMOL console:
+    ```python
+    # Load first line of pair_output.txt
+    select predicted_pairs, id 59+1054+4602+5222+...
+    show sticks, predicted_pairs
+    color red, predicted_pairs
+    ```
+
+    </Step>
+</Steps>
+
+---
+
+## Understanding the Output
+
+### Pair Output Format
+
+The first line of `pair_output.txt` is a PyMOL selection string:
+
+```
++59+1054+4602+5222+1318+4788+...
+```
+
+Subsequent lines list atom pairs:
+
+```
+59 1054          # Atom 59 bonds to atom 1054
+4602 5222        # Atom 4602 bonds to atom 5222
+1318 4788        # ...
+```
+
+<Accordion title="Core vs Surface Pairs">
+  **Core pairs** ([radical polymerization](/science/chemistry/radical-polymerization)):
+  - Single C-C bond formation between vinyl carbons
+  - Each line = one C-C bond
+  - Example: 137 pairs from the example system
+
+  **Surface pairs** ([click chemistry](/science/chemistry/click-chemistry)):
+  - TWO bonds per reaction due to [triazole ring formation](/science/chemistry/click-chemistry#triazole-mechanism)
+  - Forms 5-membered heterocycle with two N-C bonds
+  - Pairs come in twos in the output file
+  - Example: 232 pairs = 116 click reactions (232 ÷ 2 = 116)
+
+  <Tip>
+    The distinction between core and surface chemistry is explained in [Understanding Core vs Surface Cross-Linking](#understanding-core-vs-surface-cross-linking) above.
+  </Tip>
+</Accordion>
+
+### Radical Output
+
+Unpaired reactive carbons ([radicals](/glossary#radical)) are listed by atom serial number:
+
+```
+4502
+4642
+4704
+...
+```
+
+These atoms require [hydrogen saturation](/glossary#hydrogen-saturation) in post-processing to prevent unrealistic chemistry in MD simulations.
+
+<Tip>
+  See [MINP Workflow - Phase 2](/science/workflow/phase-2-crosslinking) for how to use these outputs in MD simulations.
+</Tip>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Run Your Own Structure" icon="file" href="/first-prediction">
+    Learn how to define reactive atoms and tune parameters for your system
+  </Card>
+
+  <Card title="Understand the Algorithm" icon="diagram-project" href="/science/algorithm/how-it-works">
+    Dive into the KD-tree and bond potential formulation
+  </Card>
+
+  <Card title="Complete MINP Workflow" icon="list-check" href="/science/workflow/workflow-overview">
+    Integrate LNKD into the full MINP modeling protocol
+  </Card>
+
+  <Card title="API Reference" icon="code" href="/developer/api/api-predict-bonds">
+    Use LNKD programmatically in Python scripts
+  </Card>
+</CardGroup>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="ImportError: No module named 'sklearn'">
+    **Solution**: Install scikit-learn
+    ```bash
+    pip install scikit-learn
+    ```
+  </Accordion>
+
+  <Accordion title="No pairs predicted (empty output)">
+    **Possible causes:**
+    1. Query radius too small - increase `-core_QR` or `-sur_QR`
+    2. No valid pairs within chemical constraints
+    3. Reactive atom definitions don't match PDB atom names
+
+    **Check**: Verify reactive atom file matches your PDB structure
+  </Accordion>
+
+  <Accordion title="Very long execution time (>30 seconds)">
+    **Possible causes:**
+    1. Query radius too large - decrease to 10-15 angstroms
+    2. Very large system (>1000 reactive atoms)
+
+    **Optimize**: Start with smaller query radius and increase if coverage is low
+  </Accordion>
+</AccordionGroup>
+
+<Card title="Report Issues" icon="github" href="https://github.com/sdonglab/LNKD/issues">
+  Can't find a solution? Open an issue on GitHub
+</Card>

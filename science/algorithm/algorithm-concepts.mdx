@@ -1,0 +1,346 @@
+---
+title: "Algorithm Concepts"
+description: "High-level overview of LNKD's core algorithmic components"
+---
+
+## The Core Problem
+
+Given **n** reactive atoms in 3D space, predict which pairs will form covalent bonds during cross-linking.
+
+**Constraints**:
+- Atoms must be within bonding distance
+- Chemical constraints must be satisfied
+- Each atom typically bonds only once
+- Prefer uniform cross-linking (avoid clustering)
+
+**Goal**: Find a high-coverage, chemically valid bonding pattern efficiently.
+
+---
+
+## LNKD's Four-Component Solution
+
+LNKD combines four algorithmic components to achieve O(n log n) complexity:
+
+<CardGroup cols={2}>
+  <Card title="KD-Trees" icon="tree">
+    Spatial data structure for efficient neighbor queries
+  </Card>
+  <Card title="Bond Potential" icon="function">
+    Scoring function combining distance and isolatedness
+  </Card>
+  <Card title="Max Heap" icon="layer-group">
+    Priority queue for efficient pair selection
+  </Card>
+  <Card title="Greedy Selection" icon="route">
+    Iterative algorithm with dynamic updates
+  </Card>
+</CardGroup>
+
+---
+
+## Component 1: Spatial Data Structures (KD-Trees)
+
+### The Problem
+
+Naive approach: Check every atom against every other atom
+- **Complexity**: O(n²)
+- For 780 atoms: 304,590 comparisons
+- Most comparisons check atoms that are too far apart
+
+### KD-Tree Solution
+
+**KD-tree** (k-dimensional tree) is a binary tree that recursively partitions 3D space.
+
+**Key Operations**:
+1. **Build**: O(n log n) - partition space by median coordinates
+2. **Radius Query**: O(k + log n) - find all atoms within distance r
+   - k = number of neighbors found
+   - log n = tree traversal
+
+<Accordion title="How KD-Trees Partition Space">
+  KD-trees partition coordinate space recursively along alternating axes:
+
+  **Level 0** (root): Split all points by **median x-coordinate**
+  - Left subtree: all points with x < median_x
+  - Right subtree: all points with x ≥ median_x
+
+  **Level 1**: Split each subtree by **median y-coordinate**
+
+  **Level 2**: Split by **median z-coordinate**
+
+  **Level 3+**: Cycle back to x, y, z, ...
+
+  **Query Optimization**: When searching for neighbors within radius r, entire subtrees can be eliminated if their bounding box is farther than r from the query point.
+</Accordion>
+
+### Complexity Reduction
+
+| Operation | Without KD-Tree | With KD-Tree |
+|-----------|-----------------|--------------|
+| Find neighbors for 1 atom | O(n) | O(log n) |
+| Find neighbors for all atoms | O(n²) | O(n log n) |
+
+<Tip>
+  For 780 atoms with query radius 10 Å, KD-tree typically finds 10-20 neighbors per atom, compared to checking all 779 others.
+</Tip>
+
+---
+
+## Component 2: Priority Queues (Max Heap)
+
+### The Problem
+
+After identifying candidate pairs, we need to:
+1. Select the pair with highest probability
+2. Update affected pairs (atoms now bonded)
+3. Repeat until no good pairs remain
+
+**Naive approach**: Sort all pairs after each selection → O(n log n) per iteration
+
+### Max Heap Solution
+
+A **max heap** is a binary tree where parent nodes have higher values than children.
+
+**Key Operations**:
+- **Peek max**: O(1) - get highest probability pair
+- **Pop max**: O(log n) - remove and get highest pair
+- **Update**: O(log n) - change a pair's probability and reheapify
+
+### Selection Loop Complexity
+
+| Iteration | Pairs Updated | Naive Sort | Max Heap |
+|-----------|---------------|------------|----------|
+| 1 | ~10 | O(n log n) | O(log n) |
+| 2 | ~10 | O(n log n) | O(log n) |
+| ... | ... | ... | ... |
+| m | ~10 | O(n log n) | O(log n) |
+
+**Total**: O(m × n log n) vs O(m × log n)
+
+For m ≈ n/2 pairs selected, max heap saves O(n²) operations.
+
+<Accordion title="Max Heap Structure Example">
+  ```
+  Initial heap (probabilities):
+           0.95
+          /    \
+       0.92    0.88
+      /  \     /  \
+    0.85 0.81 0.79 0.76
+  ```
+
+  After popping 0.95 and reheapifying:
+  ```
+           0.92
+          /    \
+       0.85    0.88
+      /  \     /  \
+    0.81 ... 0.79 0.76
+  ```
+
+  Only O(log n) nodes need to be compared during reheapification.
+</Accordion>
+
+---
+
+## Component 3: Bond Potential Function
+
+### The Scoring Function
+
+Each candidate pair (atom₁, atom₂) receives a probability score:
+
+$$P = \frac{\exp\left(-\frac{(d - d_{eq})^2}{2\sigma^2}\right) + w \cdot I}{1 + w \cdot C_{max}}$$
+
+**Terms**:
+1. **Distance term** (Gaussian): Prefers atoms near equilibrium bond distance
+2. **Isolatedness term**: Bonus for chains with fewer existing bonds
+3. **Normalization**: Keeps probability in reasonable range
+
+### Distance Term
+
+Gaussian centered at equilibrium bond distance (d_eq = 3.0 Å):
+
+| Distance (Å) | Gaussian Value | Interpretation |
+|--------------|----------------|----------------|
+| 3.0 | 1.000 | Ideal |
+| 3.5 | 0.980 | Very good |
+| 4.0 | 0.923 | Good |
+| 5.0 | 0.726 | Acceptable |
+| 7.0 | 0.333 | Poor |
+| 10.0 | 0.074 | Very poor |
+
+<Tip>
+  Query radius of 10-15 Å ensures we capture all reasonable pairs while eliminating impossible long-range bonds.
+</Tip>
+
+### Isolatedness Term
+
+**Isolatedness score** = 8 - (current connectivity)
+
+Promotes bonding to isolated chains:
+- Chains with 0 external bonds: I = 8 (high bonus)
+- Chains with 4 external bonds: I = 4 (medium bonus)
+- Chains with 8 external bonds: I = 0 (no bonus)
+
+**Weight parameter (w)**: Controls strength of preference
+- w = 0: Pure distance-based
+- w = 0.03: Slight preference (recommended)
+- w = 0.1: Strong preference
+
+<Accordion title="Isolatedness Calculation Example">
+  Consider chain A bonding to chain B:
+
+  **Chain A**:
+  - Already bonded to chains C and D
+  - Connectivity = 2
+  - Isolatedness₁ = 8 - 2 = 6
+
+  **Chain B**:
+  - No external bonds yet
+  - Connectivity = 0
+  - Isolatedness₂ = 8 - 0 = 8
+
+  **Total isolatedness**: I = 6 + 8 = 14
+
+  With w = 0.03:
+  - Isolatedness bonus = 0.03 × 14 = 0.42
+  - Normalizer = 1 + 0.03 × 8 = 1.24
+  - Final bonus contribution = 0.42 / 1.24 = 0.34
+
+  This adds significantly to the distance-based probability, making isolated pairs more attractive.
+</Accordion>
+
+---
+
+## Component 4: Greedy Selection Strategy
+
+### The Algorithm
+
+LNKD uses a **greedy iterative approach**:
+
+<Steps>
+  <Step title="Initialize">
+    - Build KD-tree from reactive atoms
+    - Query neighbors within radius for each atom
+    - Calculate bond potentials for all candidate pairs
+    - Build max heap from pairs
+  </Step>
+
+  <Step title="Select Best Pair">
+    - Pop pair with highest probability from heap
+    - Check if probability > threshold (0.001)
+    - If yes, accept pair; if no, terminate
+  </Step>
+
+  <Step title="Update State">
+    - Mark both atoms as bonded
+    - Update chain connectivity states
+    - Find all pairs affected by this bonding
+  </Step>
+
+  <Step title="Recalculate">
+    - Recalculate bond potential for affected pairs
+    - Update their positions in heap
+    - Some may now have P = 0 (constraints violated)
+  </Step>
+
+  <Step title="Repeat">
+    - Go back to Step 2
+    - Continue until heap is empty or all P < threshold
+  </Step>
+</Steps>
+
+### Why Greedy Works
+
+**Greedy algorithms** make locally optimal choices at each step.
+
+For cross-linking prediction:
+- ✓ High-probability pairs are chemically favorable
+- ✓ Early bonds constrain later choices (bonding state)
+- ✓ Isolatedness term prevents clustering
+- ✓ Result: High coverage, uniform distribution
+
+**Not guaranteed globally optimal**, but achieves:
+- 88-95% coverage
+- Chemically valid
+- Efficient O(n log n) complexity
+
+---
+
+## Chemical Constraint Validation
+
+Throughout the algorithm, bond potentials enforce constraints:
+
+<AccordionGroup>
+  <Accordion title="Same-Chain Filtering">
+    **Constraint**: Atoms on the same polymer chain cannot cross-link
+
+    **Implementation**:
+    - During KD-tree query, filter out same-chain neighbors
+    - If pair violates this → P = 0
+  </Accordion>
+
+  <Accordion title="Bonding State Checking">
+    **Constraint**: Each reactive site can bond only once
+
+    **Implementation**:
+    - Track `atom.is_bonded_external` flag
+    - If either atom already bonded → P = 0
+    - Update flag when pair selected
+  </Accordion>
+
+  <Accordion title="Chain Connectivity Limits">
+    **Constraint**: Prevent over-bonding of individual chains
+
+    **Implementation**:
+    - Track `chain.bonded_chains` set
+    - If chains already bonded to each other → P = 0
+    - Isolatedness term naturally limits connectivity
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  All constraint violations result in P = 0, ensuring invalid pairs are never selected even if geometrically favorable.
+</Warning>
+
+---
+
+## Complexity Analysis
+
+### Overall Algorithm Complexity
+
+| Component | Complexity | For n=780 |
+|-----------|------------|-----------|
+| KD-tree build | O(n log n) | ~7,500 ops |
+| Radius queries | O(n log n) | ~7,500 ops |
+| Initial pair calculation | O(kn) | ~15,000 (k≈20) |
+| Heap build | O(kn) | ~15,000 |
+| Selection loop (m iterations) | O(m log n) | ~3,000 (m≈350) |
+| **Total** | **O(n log n)** | **~50,000 ops** |
+
+Compare to brute force:
+- O(n²) = 608,400 operations (quadratic)
+- O(n log n) = ~50,000 operations (logarithmic)
+- This operation count advantage increases with system size
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Bond Potential Details" icon="function" href="/science/algorithm/bond-potential">
+    Deep dive into the bond potential equation
+  </Card>
+
+  <Card title="How It Works" icon="gear" href="/science/algorithm/how-it-works">
+    Step-by-step algorithm walkthrough with code
+  </Card>
+
+  <Card title="Design Decisions" icon="lightbulb" href="/developer/architecture/design-decisions">
+    Why these specific data structures?
+  </Card>
+
+  <Card title="Try It" icon="rocket" href="/quickstart">
+    Run LNKD on the example system
+  </Card>
+</CardGroup>

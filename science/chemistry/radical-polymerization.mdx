@@ -1,0 +1,648 @@
+---
+title: "Radical Polymerization for Core Cross-Linking"
+description: "Free radical mechanism and C-C bond formation in MINP cores"
+---
+
+## What is Radical Polymerization?
+
+**Radical polymerization** is a chain-growth process where reactive radical species add to vinyl monomers, forming C-C bonds.
+
+**Key features**:
+- Fast reaction (minutes to hours)
+- High molecular weight polymers
+- Tolerates many functional groups
+- Inexpensive initiators
+
+**MINP application**: Core cross-linking via C-C bond formation between divinylbenzene (DVB) and methacrylate monomers.
+
+---
+
+## Historical Development
+
+<Steps>
+  <Step title="1930s: Discovery of Free Radical Polymerization">
+    **Staudinger and Carothers** demonstrate vinyl polymerization:
+    - Styrene → polystyrene
+    - Methyl methacrylate → PMMA (Plexiglas)
+    - Initiated by heat, light, or peroxides
+  </Step>
+
+  <Step title="1940s-1950s: Mechanism Elucidation">
+    **Flory, Norrish, and others** establish radical chain mechanism:
+    - Initiation: radical generation
+    - Propagation: chain growth
+    - Termination: radical recombination
+    - Kinetic equations developed
+  </Step>
+
+  <Step title="1960s: Cross-Linking Polymers">
+    **Introduction of divinyl monomers**:
+    - DVB added to styrene → cross-linked polystyrene
+    - EGDMA + MMA → cross-linked network
+    - Basis for ion exchange resins, chromatography media
+  </Step>
+
+  <Step title="1990s-2000s: Controlled Radical Polymerization">
+    **Living radical polymerization** techniques:
+    - ATRP (Atom Transfer Radical Polymerization)
+    - RAFT (Reversible Addition-Fragmentation chain Transfer)
+    - NMP (Nitroxide-Mediated Polymerization)
+    - Better control over molecular weight and architecture
+  </Step>
+
+  <Step title="2010s: Application to MINPs">
+    **Radical cross-linking in nanoparticles**:
+    - Microemulsion polymerization
+    - Controlled cross-link density
+    - **LNKD contribution**: Predict which vinyl carbons bond
+  </Step>
+</Steps>
+
+---
+
+## Free Radical Mechanism
+
+### Three-Stage Process
+
+Radical polymerization occurs in three distinct stages:
+
+<Tabs>
+  <Tab title="1. Initiation">
+    **Generate reactive radicals** from stable initiator.
+
+    **Thermal initiation** (AIBN):
+    $$\text{AIBN} \xrightarrow{\Delta} 2 \text{R}^\bullet + \text{N}_2$$
+
+    **UV initiation** (photoinitiator):
+    $$\text{Photoinitiator} \xrightarrow{h\nu} 2 \text{R}^\bullet$$
+
+    **Result**: Primary radicals (R•) that can attack vinyl groups
+
+    **Rate**: Slow (rate-determining step for initiation)
+  </Tab>
+
+  <Tab title="2. Propagation">
+    **Chain growth** via radical addition to vinyl double bonds.
+
+    **First addition**:
+    $$\text{R}^\bullet + \text{CH}_2\text{=CH-R'} \rightarrow \text{R-CH}_2\text{-}\dot{\text{C}}\text{H-R'}$$
+
+    **Subsequent additions** (repeat):
+    $$\text{R-}(\text{CH}_2\text{-CHR'})_n\text{-}\dot{\text{C}}\text{H-R'} + \text{CH}_2\text{=CH-R'} \rightarrow \text{R-}(\text{CH}_2\text{-CHR'})_{n+1}\text{-}\dot{\text{C}}\text{H-R'}$$
+
+    **Result**: Growing polymer chain with radical at terminus
+
+    **Rate**: Fast (1000-10,000 additions per second)
+  </Tab>
+
+  <Tab title="3. Termination">
+    **Radical destruction** via recombination or disproportionation.
+
+    **Combination** (C-C bond formation):
+    $$\text{R-}(\text{CH}_2\text{-CHR'})_n^\bullet + ^\bullet(\text{R'HC-CH}_2)_m\text{-R} \rightarrow \text{R-}(\text{CH}_2\text{-CHR'})_{n+m}\text{-R}$$
+
+    **Disproportionation** (H-transfer):
+    $$\text{R-}(\text{CH}_2\text{-CHR'})_n^\bullet + ^\bullet(\text{R'HC-CH}_2)_m\text{-R} \rightarrow \text{R-}(\text{CH}_2\text{-CHR'})_n\text{-H} + \text{R-}(\text{R'C=CH})(\text{CH}_2\text{-CHR'})_{m-1}\text{-R}$$
+
+    **Result**: Terminated chains (no more radical)
+
+    **Rate**: Very fast (diffusion-controlled)
+  </Tab>
+</Tabs>
+
+---
+
+## Vinyl Monomers for MINP Core
+
+### Divinylbenzene (DVB) - Primary Cross-Linker
+
+**Structure**:
+```
+        CH₂=CH-[benzene]-CH=CH₂
+```
+
+**Properties**:
+- Two vinyl groups (difunctional)
+- Aromatic core provides rigidity
+- Hydrophobic
+- Commercial DVB is mixture of ortho-, meta-, para-isomers
+
+**Role in MINP**:
+- Each DVB can form 2 C-C bonds → cross-linking
+- Creates rigid core network
+- Typical concentration: 60-80% of core monomers
+
+**Reactivity**: Both vinyl groups react at similar rates (no preference)
+
+---
+
+### Methacrylate Monomers - Functional Cross-Linkers
+
+**Ethylene Glycol Dimethacrylate (EGDMA)**:
+```
+CH₂=C(CH₃)-COO-CH₂-CH₂-OOC-C(CH₃)=CH₂
+```
+
+**Properties**:
+- Two methacrylate groups (difunctional)
+- Flexible spacer (ethylene glycol)
+- More polar than DVB
+- Often mixed with DVB for balanced rigidity/flexibility
+
+**Monovinyl methacrylates** (if surfactant participates):
+```
+CH₂=C(CH₃)-COO-R
+```
+- Single vinyl group
+- Can incorporate into core network
+- Provides functional handles (R = various groups)
+
+---
+
+### Vinyl Carbon Reactivity
+
+**Which carbons form radicals?**
+
+<Accordion title="Terminal Vinyl Carbons (CH₂=)">
+  **Less substituted carbon** in vinyl group.
+
+  **Radical formation**:
+  $$\text{CH}_2\text{=CH-R} + \text{R'}^\bullet \rightarrow \text{R'-CH}_2\text{-}\dot{\text{C}}\text{H-R}$$
+
+  **Reason**: Less steric hindrance, more stable radical (α to substituent)
+
+  **In LNKD**: Denoted as **CU** (Carbon Unsubstituted)
+</Accordion>
+
+<Accordion title="Substituted Vinyl Carbons (=CH-)">
+  **More substituted carbon** in vinyl group.
+
+  **Radical formation**:
+  $$\text{CH}_2\text{=CH-R} + \text{R'}^\bullet \rightarrow \text{R'-}\dot{\text{C}}\text{H-CH}_2\text{-R}$$
+
+  **Reason**: Possible if radical attacks from other direction (less common)
+
+  **In LNKD**: Denoted as **CV** (Carbon Vinyl position)
+</Accordion>
+
+**Selectivity**: In practice, radicals preferentially attack CH₂= position (~90%)
+
+---
+
+## Cross-Linking in MINP Core
+
+### Why Radical Polymerization for Core?
+
+<CardGroup cols={2}>
+  <Card title="Speed" icon="bolt">
+    - Polymerization complete in minutes to hours
+    - Much faster than click chemistry
+    - Entire core solidifies rapidly
+  </Card>
+
+  <Card title="Density" icon="grid-2">
+    - High cross-link density achievable (>80%)
+    - Creates rigid nanoparticle core
+    - Maintains binding cavity shape
+  </Card>
+
+  <Card title="Simplicity" icon="wand-magic-sparkles">
+    - Simple initiators (UV light, heat)
+    - No catalyst required (unlike click)
+    - Tolerates water and many functional groups
+  </Card>
+
+  <Card title="Cost" icon="dollar-sign">
+    - DVB and EGDMA are inexpensive
+    - Initiators cost pennies per synthesis
+    - Scalable to large batches
+  </Card>
+</CardGroup>
+
+---
+
+### Two-Step Cross-Linking Strategy
+
+**Why not radical polymerization for everything?**
+
+| Aspect | Surface (Click) | Core (Radical) |
+|--------|-----------------|----------------|
+| **Selectivity** | High (azide + alkyne only) | Low (any vinyl group) |
+| **Control** | Precise pair prediction | Random cross-linking |
+| **Orthogonality** | Doesn't interfere with radicals | Consumes all vinyl groups |
+| **Order** | **First** (defines shell) | **Second** (fills core) |
+
+**Strategy**:
+1. **Click chemistry**: Create rigid surface shell
+2. **Radical polymerization**: Fill and cross-link core
+
+<Warning>
+  If radical polymerization is performed first, it will consume both surface and core vinyl groups, preventing click chemistry.
+</Warning>
+
+---
+
+## LNKD Prediction for Core Cross-Linking
+
+### Challenge: Unpaired Radicals
+
+**Problem**: Not all vinyl carbons find bonding partners.
+
+**Example**:
+- DVB molecule has 2 vinyl groups (4 vinyl carbons total: 2×CU, 2×CV)
+- If only 1 vinyl group reacts, the other vinyl group is unreacted
+- Unreacted vinyl = **radical** (reactive, unpaired electron)
+
+**Consequence**: Radicals are chemically unstable and must be saturated with hydrogen.
+
+---
+
+### LNKD Core Prediction
+
+**Input**: Surface-cross-linked structure + core reactive atoms
+
+```bash
+python3 predict_for_single_surfactant.py \
+    surface_md.gro \             # After surface click
+    core_reactive.txt \          # DVB vinyl carbons
+    -core_QR 10 \                # Tighter radius for core
+    -core_W 0.03 \
+    empty_surface.txt \          # Surface already done
+    -o core_output/
+```
+
+**Reactive atoms file** (`core_reactive.txt`):
+```text
+CU  DVO    # Vinyl carbon (unsubstituted) on DVB ortho-isomer
+CV  DVO    # Vinyl carbon (vinyl position) on DVB ortho-isomer
+CU  DVP    # Vinyl carbon on DVB para-isomer
+CV  DVP
+```
+
+**Output files**:
+1. **`core_pair_output.txt`**: Predicted C-C bonding pairs
+   ```
+   137  249
+   401  587
+   ...
+   ```
+   **Interpretation**: Atoms 137 and 249 will form a C-C bond
+
+2. **`radical_output.txt`**: Unpaired vinyl carbons
+   ```
+   4502
+   4642
+   4704
+   ...
+   ```
+   **Interpretation**: These atoms didn't find partners → need H-saturation
+
+---
+
+### Typical Results
+
+**For 80 DVB molecules** (160 vinyl groups, 320 vinyl carbons):
+
+| Metric | Typical Value |
+|--------|---------------|
+| C-C bonds predicted | 120-160 |
+| Vinyl carbons bonded | 240-320 (75-100%) |
+| Radicals (unpaired) | 40-80 (7-15%) |
+| Coverage | 88-95% |
+
+**Interpretation**: Most vinyl groups participate in cross-linking, but ~10% remain as radicals.
+
+<Tip>
+  7-10% radicals is normal and expected. Higher percentages (>15%) suggest increasing query radius or isolation weight.
+</Tip>
+
+---
+
+## Hydrogen Saturation of Radicals
+
+### Why H-Saturation is Required
+
+**Problem**: Unpaired radicals are reactive
+- Can undergo unwanted reactions
+- Destabilize MD simulations
+- Not chemically realistic (would abstract H from surroundings in reality)
+
+**Solution**: Add hydrogen atoms to radical centers
+
+$$\dot{\text{C}}\text{H-R} + \text{H}^\bullet \rightarrow \text{CH}_2\text{-R}$$
+
+---
+
+### H-Saturation Protocol
+
+**Computational approach**:
+
+```python
+# h_saturate.py
+import MDAnalysis as mda
+
+# Load structure and radical list
+u = mda.Universe('surface_md.gro')
+with open('core_output/radical_output.txt') as f:
+    radicals = [int(line.strip()) for line in f if line.strip().isdigit()]
+
+for radical_idx in radicals:
+    atom = u.atoms[radical_idx - 1]  # Convert to 0-indexing
+
+    # Determine geometry for H addition
+    if atom.name in ['CU', 'CV']:
+        # Vinyl carbon: add H to complete sp³ hybridization
+        add_hydrogen_to_vinyl(atom, u)
+
+# Write saturated structure
+u.atoms.write('core_saturated.pdb')
+
+def add_hydrogen_to_vinyl(carbon_atom, universe):
+    """
+    Add hydrogen to vinyl carbon to satisfy valence.
+
+    Geometry: tetrahedral around carbon (sp³ after H addition)
+    """
+    # Get carbon's existing bonds
+    bonds = carbon_atom.bonds
+
+    # Calculate ideal H position (opposite to existing bonds)
+    h_position = calculate_tetrahedral_position(carbon_atom, bonds)
+
+    # Add hydrogen atom
+    new_h = add_atom(universe, name='H', position=h_position)
+
+    # Add bond in topology
+    carbon_atom.add_bond(new_h)
+```
+
+**Validation**: Check that all radical atoms now have complete valence (4 bonds for C)
+
+---
+
+## Topology Update for Core Bonds
+
+**After LNKD prediction and H-saturation**, update GROMACS topology:
+
+**Add C-C bonds** from `core_pair_output.txt`:
+
+```
+[ bonds ]
+; Existing bonds (surface triazoles, initial structure)...
+
+; LNKD-predicted core C-C bonds
+137   249    1   0.153   300000  ; C-C single bond (sp³-sp³)
+401   587    1   0.153   300000
+2145  3098   1   0.153   300000
+...
+```
+
+**Bond parameters**:
+- Length: 0.153 nm (standard C-C single bond)
+- Force constant: 300,000 kJ/mol/nm² (slightly weaker than aromatic C-C)
+
+**Add C-H bonds** for saturated radicals:
+
+```
+[ bonds ]
+; H-saturation bonds
+4502  9876   1   0.109   340000  ; C-H bond
+4642  9877   1   0.109   340000
+...
+```
+(Assumes new H atoms have indices 9876, 9877, etc.)
+
+---
+
+## Constrained MD for Core Cross-Linking
+
+### PLUMED Restraints
+
+Similar to surface, enforce predicted C-C bonds:
+
+```python
+# plumed_core.dat
+# Core C-C bond restraints
+
+DISTANCE ATOMS=137,249 LABEL=d1
+UPPER_WALLS ARG=d1 AT=0.35 KAPPA=1000.0 EXP=2 LABEL=uw1
+
+DISTANCE ATOMS=401,587 LABEL=d2
+UPPER_WALLS ARG=d2 AT=0.35 KAPPA=1000.0 EXP=2 LABEL=uw2
+
+# ... all core pairs
+
+PRINT ARG=d1,d2,... FILE=core_distances.dat STRIDE=100
+```
+
+**Parameters**:
+- `AT=0.35`: Upper wall at 3.5 Å (allows flexibility)
+- `KAPPA=1000`: Force constant (kJ/mol/nm²)
+- `EXP=2`: Harmonic restraint
+
+---
+
+### Run Constrained MD
+
+```bash
+# Prepare simulation
+gmx grompp -f md_core.mdp \
+           -c core_saturated.gro \
+           -p topol.top \
+           -o core_md.tpr
+
+# Run with PLUMED
+gmx mdrun -v -deffnm core_md -plumed plumed_core.dat
+```
+
+**Duration**: 5-10 ns (sufficient for bond formation)
+
+**Monitor**:
+```bash
+# Check distances converge
+tail core_distances.dat
+
+# All distances should be < 3.5 Å and stable
+```
+
+**Output**: `core_md.gro` - Fully cross-linked MINP structure
+
+---
+
+## Experimental Core Cross-Linking
+
+### Radical Polymerization Conditions
+
+**Typical MINP core polymerization**:
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| **Initiator** | AIBN or UV photoinitiator | 1-2 mol% |
+| **Temperature** | 60-80°C (AIBN) or RT (UV) | Depends on initiator |
+| **Time** | 4-12 hours | Until vinyl peaks disappear |
+| **Atmosphere** | Nitrogen or argon | Oxygen inhibits radicals |
+| **Solvent** | Toluene, chloroform, or aqueous | Depends on MINP type |
+
+**Monitoring**:
+- **FTIR**: Vinyl C=C stretch at 1640 cm⁻¹ disappears
+- **NMR**: Vinyl protons (δ 5-6 ppm) disappear
+
+---
+
+### Polymerization Kinetics
+
+**Conversion vs. time** (typical):
+
+| Time | Vinyl Conversion | Structure |
+|------|------------------|-----------|
+| 0 h | 0% | Pre-polymerization |
+| 2 h | 40-60% | Gelation (network forms) |
+| 4 h | 70-85% | Dense core |
+| 8 h | 85-95% | Nearly complete |
+| 12 h | 90-98% | Final structure |
+
+**Gelation point**: When cross-linked network spans entire particle (~50-60% conversion)
+
+<Accordion title="What is Gelation?">
+  **Gelation**: Transition from liquid-like (sol) to solid-like (gel) state.
+
+  **Cause**: Cross-linking creates infinite network
+
+  **Observation**:
+  - Solution viscosity increases dramatically
+  - Particles no longer flow freely
+  - Network is permanent (cannot re-dissolve)
+
+  **Relevance**: After gelation, MINP structure is locked in place
+</Accordion>
+
+---
+
+## Oxygen Inhibition
+
+### The Oxygen Problem
+
+**Oxygen is a radical scavenger**:
+
+$$\text{R}^\bullet + \text{O}_2 \rightarrow \text{R-O-O}^\bullet$$
+
+**Peroxy radical (R-O-O•)** is much less reactive:
+- Does not propagate polymerization
+- Terminates growing chains
+- Requires ~100× more initiator to overcome
+
+**Result**: Polymerization slows or stops in presence of air
+
+---
+
+### Degassing Methods
+
+<Tabs>
+  <Tab title="Freeze-Pump-Thaw">
+    **Gold standard for small-scale synthesis**:
+
+    <Steps>
+      <Step title="Freeze">
+        Freeze solution in liquid nitrogen
+      </Step>
+      <Step title="Evacuate">
+        Apply vacuum to remove gases (including O₂)
+      </Step>
+      <Step title="Thaw">
+        Warm to room temperature
+      </Step>
+      <Step title="Repeat">
+        Cycle 3-5 times for complete degassing
+      </Step>
+    </Steps>
+
+    **Effectiveness**: >99.9% O₂ removal
+  </Tab>
+
+  <Tab title="Nitrogen/Argon Sparging">
+    **Simple method for larger volumes**:
+
+    - Bubble inert gas through solution for 15-30 min
+    - Displaces dissolved oxygen
+    - Maintain inert atmosphere during polymerization
+
+    **Effectiveness**: ~95-98% O₂ removal (sufficient for most applications)
+  </Tab>
+
+  <Tab title="Chemical Scavenging">
+    **Add reducing agent**:
+
+    - Ascorbic acid
+    - Glucose + glucose oxidase
+    - Consumes residual O₂ chemically
+
+    **Effectiveness**: Good for aqueous systems where sparging is difficult
+  </Tab>
+</Tabs>
+
+---
+
+## Comparison: Click vs. Radical
+
+### When to Use Each Method
+
+| Criterion | Click Chemistry | Radical Polymerization |
+|-----------|----------------|------------------------|
+| **Selectivity** | Azide + alkyne only | Any vinyl group |
+| **Speed** | 8-24 hours | 2-8 hours |
+| **Temperature** | 20-40°C | 60-80°C (or RT with UV) |
+| **Oxygen sensitivity** | Insensitive | **Highly sensitive** |
+| **Catalyst** | Cu(I) required | Initiator only |
+| **Product** | Triazole (aromatic) | C-C bond (aliphatic) |
+| **Reversibility** | Irreversible | Irreversible |
+| **Water compatibility** | Excellent | Good (with water-soluble initiators) |
+
+**MINP strategy**: Click for surface (control), radical for core (speed and density)
+
+---
+
+## LNKD's Impact on Core Cross-Linking
+
+### Before LNKD
+
+**Challenges**:
+- No prediction of which vinyl groups react
+- Radical distribution unknown
+- Trial-and-error cross-linker ratios
+- Iterative MD simulations (weeks per attempt)
+
+**Result**: Sub-optimal core structures, weak mechanical properties
+
+---
+
+### With LNKD
+
+**Advantages**:
+1. **Predicts bonding pairs**: Know which vinyl carbons form C-C bonds
+2. **Identifies radicals**: Target H-saturation precisely
+3. **Fast computation**: Direct topology prediction vs. iterative MD
+4. **Rational design**: Optimize DVB:EGDMA ratio computationally
+
+**Result**: Stronger, more uniform MINP cores
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Phase 2: Cross-Linking" icon="2" href="/science/workflow/phase-2-crosslinking">
+    Apply radical polymerization in MINP workflow
+  </Card>
+
+  <Card title="Click Chemistry" icon="flask" href="/science/chemistry/click-chemistry">
+    Compare with surface cross-linking method
+  </Card>
+
+  <Card title="MIP Background" icon="book" href="/science/chemistry/mip-background">
+    Broader context of MINP synthesis
+  </Card>
+
+  <Card title="How LNKD Works" icon="gear" href="/science/algorithm/how-it-works">
+    Algorithm for predicting radical pairs
+  </Card>
+</CardGroup>

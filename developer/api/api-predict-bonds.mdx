@@ -1,0 +1,539 @@
+---
+title: "API: Prediction Engines"
+description: "Complete reference for BondPredictor and PolymerizationPredictor classes"
+---
+
+## Module Overview
+
+**Location**: `pair_prediction/tools/predict_bonds.py`, `predict_polymerization.py`
+
+**Purpose**: Core prediction engines implementing the LNKD algorithm
+
+**Classes**:
+- `BondPredictor`: General cross-linking prediction (click chemistry, surface)
+- `PolymerizationPredictor`: Extends for radical polymerization (core)
+
+---
+
+## BondPredictor Class
+
+### Constructor
+
+```python
+class BondPredictor:
+    def __init__(self, pdb_file, reactive_file, query_radius, isolation_weight):
+        """
+        Initialize bond prediction engine.
+
+        Args:
+            pdb_file (str): Path to PDB structure file
+            reactive_file (str): Path to reactive atom definitions
+            query_radius (float): KD-tree search radius (Angstroms)
+            isolation_weight (float): Weight for isolatedness term (0.01-0.10)
+
+        Attributes:
+            pdb (PDB): Parsed structure
+            reactive_atoms (list): Filtered reactive Atom objects
+            query_radius (float): Neighbor search distance
+            isolation_weight (float): Isolatedness parameter
+            probability_heap (list): Max heap of Pair objects
+            pairs (list): Selected bonding pairs
+        """
+```
+
+**Example**:
+```python
+predictor = BondPredictor(
+    pdb_file='micelle.pdb',
+    reactive_file='sur_reactive.txt',
+    query_radius=15.0,
+    isolation_weight=0.03
+)
+```
+
+---
+
+### Methods
+
+<Tabs>
+  <Tab title="get_reactive_str_representation()">
+    ```python
+    def get_reactive_str_representation(self, reactive_file):
+        """
+        Parse reactive atom definitions from file.
+
+        File format (space-separated):
+            ATOM_NAME RESIDUE_NAME
+            CU DVO
+            CV DVO
+            N01 MON
+
+        Args:
+            reactive_file (str): Path to reactive definitions
+
+        Returns:
+            dict: {atom_name: residue_name} mapping
+
+        Example:
+            >>> reactive_dict = predictor.get_reactive_str_representation('core.txt')
+            >>> print(reactive_dict)
+            {'CU': 'DVO', 'CV': 'DVO'}
+        ```
+  </Tab>
+
+  <Tab title="init_reactive_atoms()">
+    ```python
+    def init_reactive_atoms(self, reactive_atoms_dict):
+        """
+        Filter PDB structure to reactive atoms only.
+
+        Args:
+            reactive_atoms_dict (dict): From get_reactive_str_representation()
+
+        Side effects:
+            Sets self.reactive_atoms (list of Atom objects)
+
+        Algorithm:
+            For each chain:
+                For each atom in chain:
+                    If atom.name in reactive_dict:
+                        If chain.chain_type == reactive_dict[atom.name]:
+                            Add to self.reactive_atoms
+
+        Example:
+            >>> predictor.init_reactive_atoms(reactive_dict)
+            >>> print(len(predictor.reactive_atoms))
+            780  # 780 reactive atoms out of 11,500 total
+        ```
+  </Tab>
+
+  <Tab title="build_kd_tree()">
+    ```python
+    def build_kd_tree(self):
+        """
+        Construct KD-tree from reactive atom coordinates.
+
+        Returns:
+            sklearn.neighbors.KDTree: Spatial index
+
+        Example:
+            >>> tree = predictor.build_kd_tree()
+            >>> print(type(tree))
+            <class 'sklearn.neighbors.kd_tree.KDTree'>
+        ```
+
+    **Implementation**:
+    ```python
+    from sklearn.neighbors import KDTree
+    from tools.utils import atoms_to_coords
+
+    coords = atoms_to_coords(self.reactive_atoms)
+    tree = KDTree(coords, leaf_size=30)
+    return tree
+    ```
+  </Tab>
+
+  <Tab title="query_neighbors()">
+    ```python
+    def query_neighbors(self, tree):
+        """
+        Find all atoms within query_radius of each reactive atom.
+
+        Args:
+            tree (KDTree): Spatial index from build_kd_tree()
+
+        Returns:
+            tuple: (indices, distances)
+                indices[i] = list of neighbor atom indices for atom i
+                distances[i] = corresponding distances (Angstroms)
+
+        Example:
+            >>> indices, distances = predictor.query_neighbors(tree)
+            >>> print(len(indices[0]))  # Neighbors of atom 0
+            12  # 12 atoms within 15 Å of atom 0
+        ```
+
+    **Implementation**:
+    ```python
+    coords = atoms_to_coords(self.reactive_atoms)
+    indices, distances = tree.query_radius(
+        coords,
+        r=self.query_radius,
+        return_distance=True
+    )
+    return indices, distances
+    ```
+  </Tab>
+
+  <Tab title="initialize_potential_pairs()">
+    ```python
+    def initialize_potential_pairs(self, indices, distances):
+        """
+        Create Pair objects with bond potentials for all candidates.
+
+        Args:
+            indices (list): Neighbor indices from query_neighbors()
+            distances (list): Neighbor distances
+
+        Returns:
+            list: Pair objects with calculated probabilities
+
+        Filters applied:
+            1. Remove self-references (index 0)
+            2. Remove same-chain pairs (no intra-chain bonding)
+            3. Calculate bond potential for each valid pair
+            4. Keep only pairs with P > 0
+
+        Example:
+            >>> pairs = predictor.initialize_potential_pairs(indices, distances)
+            >>> print(len(pairs))
+            8542  # 8,542 candidate pairs
+            >>> print(pairs[0].probability)
+            0.847  # Bond potential score
+        ```
+  </Tab>
+
+  <Tab title="calculate_bond_potential()">
+    ```python
+    def calculate_bond_potential(self, pair):
+        """
+        Calculate bond potential for a pair.
+
+        Args:
+            pair (Pair): Pair object with atom1, atom2, distance
+
+        Returns:
+            float: Bond potential (0 to ~1)
+
+        Formula:
+            P = (exp(-((d - d_eq)^2) / (2*σ^2)) + w*I) / (1 + w*C_max)
+
+        Example:
+            >>> pair = Pair(atom1, atom2, distance=3.5)
+            >>> prob = predictor.calculate_bond_potential(pair)
+            >>> print(prob)
+            0.823
+        ```
+
+    **Implementation**:
+    ```python
+    from tools.utils import bond_potential
+
+    # Get isolatedness
+    chain1 = self.pdb.chains[pair.atom1.chain_id]
+    chain2 = self.pdb.chains[pair.atom2.chain_id]
+    iso = chain1.get_connectivity() + chain2.get_connectivity()
+
+    # Calculate potential
+    prob = bond_potential(
+        atom_dist=pair.distance,
+        dist_equilibrium=3.0,
+        dist_variance=6.25,
+        iso_weight=self.isolation_weight,
+        isolatedness=iso,
+        Cmax=8
+    )
+    return prob
+    ```
+  </Tab>
+
+  <Tab title="init_prob_heap()">
+    ```python
+    def init_prob_heap(self):
+        """
+        Build max heap from potential pairs.
+
+        Returns:
+            list: Heap of (-probability, index, pair) tuples
+
+        Note:
+            Uses negative probability for max heap (heapq is min heap)
+
+        Example:
+            >>> heap = predictor.init_prob_heap()
+            >>> best = heapq.heappop(heap)
+            >>> print(-best[0])  # Highest probability
+            0.952
+        ```
+
+    **Implementation**:
+    ```python
+    import heapq
+
+    heap = [
+        (-pair.probability, idx, pair)
+        for idx, pair in enumerate(self.potential_pairs)
+    ]
+    heapq.heapify(heap)
+    return heap
+    ```
+  </Tab>
+
+  <Tab title="bond_selection_loop()">
+    ```python
+    def bond_selection_loop(self):
+        """
+        Main greedy selection algorithm.
+
+        Algorithm:
+            While heap not empty:
+                1. Pop best pair
+                2. If P < 0.001: terminate
+                3. If atoms already bonded: skip
+                4. Accept pair
+                5. Mark atoms as bonded
+                6. Update chain connectivity
+                7. Recalculate affected pairs
+                8. Re-add to heap
+
+        Side effects:
+            - Populates self.pdb.pairs
+            - Modifies atom.is_bonded_external flags
+            - Updates chain.bonded_chains sets
+
+        Example:
+            >>> predictor.bond_selection_loop()
+            >>> print(len(predictor.pdb.pairs))
+            142  # 142 pairs selected
+        ```
+  </Tab>
+
+  <Tab title="find_affected_pairs()">
+    ```python
+    def find_affected_pairs(self, accepted_pair):
+        """
+        Find pairs whose bond potential changed after accepting a pair.
+
+        Args:
+            accepted_pair (Pair): Newly accepted bonding pair
+
+        Returns:
+            list: Pair objects that need probability recalculation
+
+        Logic:
+            Affected if:
+                - Contains atom from same chain as accepted_pair.atom1
+                - Contains atom from same chain as accepted_pair.atom2
+                (Their chains' isolatedness decreased)
+
+        Example:
+            >>> affected = predictor.find_affected_pairs(pair_A_B)
+            >>> print(len(affected))
+            23  # 23 pairs involve chains A or B
+        ```
+  </Tab>
+
+  <Tab title="write_output()">
+    ```python
+    def write_output(self, output_file):
+        """
+        Write bonded pairs to file.
+
+        Args:
+            output_file (str): Path to output file
+
+        Format:
+            atom1_serial atom2_serial
+            59 1054
+            4602 5222
+            ...
+
+        Example:
+            >>> predictor.write_output('surface_pair_output.txt')
+        ```
+  </Tab>
+</Tabs>
+
+---
+
+### Complete Usage Example
+
+```python
+# Initialize predictor
+predictor = BondPredictor(
+    pdb_file='micelle_relaxed.pdb',
+    reactive_file='sur_reactive.txt',
+    query_radius=15.0,
+    isolation_weight=0.03
+)
+
+# Parse reactive atoms
+reactive_dict = predictor.get_reactive_str_representation('sur_reactive.txt')
+predictor.init_reactive_atoms(reactive_dict)
+
+# Build spatial index
+tree = predictor.build_kd_tree()
+
+# Find neighbors
+indices, distances = predictor.query_neighbors(tree)
+
+# Filter same-chain pairs
+from tools.utils import remove_1st_and_chain
+indices, distances = remove_1st_and_chain(indices, distances, predictor.reactive_atoms)
+
+# Create pairs with potentials
+predictor.potential_pairs = predictor.initialize_potential_pairs(indices, distances)
+
+# Build heap
+predictor.probability_heap = predictor.init_prob_heap()
+
+# Run greedy selection
+predictor.bond_selection_loop()
+
+# Write results
+predictor.write_output('surface_pair_output.txt')
+
+print(f"Selected {len(predictor.pdb.pairs)} pairs")
+```
+
+---
+
+## PolymerizationPredictor Class
+
+**Inheritance**: Extends `BondPredictor`
+
+**Additional functionality**: Tracks unpaired radical atoms
+
+### Constructor
+
+```python
+class PolymerizationPredictor(BondPredictor):
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize polymerization predictor.
+
+        Inherits all BondPredictor parameters.
+
+        Additional attributes:
+            radicals (list): Unpaired Atom objects
+        """
+        super().__init__(*args, **kwargs)
+```
+
+---
+
+### Additional Methods
+
+<Tabs>
+  <Tab title="find_radicals()">
+    ```python
+    def find_radicals(self, reactive_atoms_dict):
+        """
+        Identify unpaired vinyl carbons after bonding selection.
+
+        Logic:
+            For each vinyl group (CU, CV pair):
+                If one carbon bonded but partner not bonded:
+                    Partner is radical
+
+        Args:
+            reactive_atoms_dict (dict): Reactive atom definitions
+
+        Side effects:
+            Populates self.pdb.radicals list
+
+        Example:
+            >>> predictor.find_radicals(reactive_dict)
+            >>> print(len(predictor.pdb.radicals))
+            76  # 76 unpaired vinyl carbons
+        ```
+
+    **Implementation**:
+    ```python
+    for chain_id, chain in self.pdb.chains.items():
+        for atom_name, atom in chain.atoms.items():
+            if atom_name not in reactive_atoms_dict:
+                continue
+
+            # Find paired vinyl carbon
+            if atom_name == 'CU':
+                partner_name = 'CV'
+            elif atom_name == 'CV':
+                partner_name = 'CU'
+            else:
+                continue
+
+            partner = chain.atoms.get(partner_name)
+            if not partner:
+                continue
+
+            # Check for asymmetric bonding
+            if atom.is_bonded_external and not partner.is_bonded_external:
+                self.pdb.add_radical(partner)
+            elif partner.is_bonded_external and not atom.is_bonded_external:
+                self.pdb.add_radical(atom)
+    ```
+  </Tab>
+
+  <Tab title="write_radical_output()">
+    ```python
+    def write_radical_output(self, output_file):
+        """
+        Write unpaired radicals to file.
+
+        Args:
+            output_file (str): Path to radical output
+
+        Format:
+            atom_serial
+            4502
+            4642
+            ...
+
+        Example:
+            >>> predictor.write_radical_output('radical_output.txt')
+        ```
+  </Tab>
+</Tabs>
+
+---
+
+### Usage Example
+
+```python
+# Initialize
+predictor = PolymerizationPredictor(
+    pdb_file='surface_md.gro',
+    reactive_file='core_reactive.txt',
+    query_radius=10.0,
+    isolation_weight=0.03
+)
+
+# Run prediction (inherited from BondPredictor)
+reactive_dict = predictor.get_reactive_str_representation('core_reactive.txt')
+predictor.init_reactive_atoms(reactive_dict)
+# ... (same as BondPredictor)
+predictor.bond_selection_loop()
+
+# Find radicals (PolymerizationPredictor-specific)
+predictor.find_radicals(reactive_dict)
+
+# Write outputs
+predictor.write_output('core_pair_output.txt')
+predictor.write_radical_output('radical_output.txt')
+
+print(f"Bonded pairs: {len(predictor.pdb.pairs)}")
+print(f"Radicals: {len(predictor.pdb.radicals)}")
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API: PDB" icon="database" href="/developer/api/api-pdb">
+    PDB class methods and attributes
+  </Card>
+
+  <Card title="API: Utilities" icon="wrench" href="/developer/api/api-utilities">
+    Helper functions (bond_potential, etc.)
+  </Card>
+
+  <Card title="Extending Reactions" icon="flask" href="/developer/extending/extending-reactions">
+    Create custom prediction classes
+  </Card>
+
+  <Card title="Architecture Overview" icon="sitemap" href="/developer/architecture/architecture-overview">
+    How components fit together
+  </Card>
+</CardGroup>

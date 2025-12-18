@@ -1,0 +1,216 @@
+---
+title: "Glossary"
+description: "Definitions of technical terms used in LNKD documentation"
+---
+
+## A
+
+### Atom Serial Number
+The unique identifier for each atom in a PDB file, shown in columns 7-11. LNKD uses these numbers in output files to specify which atoms should bond together.
+
+**Example**: In output `59 1054`, atoms with serial numbers 59 and 1054 will form a bond.
+
+### Azide
+A functional group containing three nitrogen atoms (N₃), used in click chemistry surface cross-linking. The terminal nitrogen forms bonds with alkyne carbons to create triazole rings.
+
+---
+
+## B
+
+### Bond Potential
+A scoring function that combines geometric favorability (distance) with topological preference (isolatedness) to rank candidate atom pairs. Higher potential = more likely to form a bond.
+
+**Formula**: See [Bond Potential Function](/science/algorithm/bond-potential) for mathematical details.
+
+---
+
+## C
+
+### Chain
+A single polymer molecule in your system. In MINP context, can refer to surfactants, cross-linkers (like DVB), or template molecules. LNKD enforces that cross-links only form *between* chains, not within a single chain.
+
+### Click Chemistry
+Azide-alkyne cycloaddition reaction used for surface cross-linking in MINPs. Forms triazole rings with TWO N-C bonds per reaction. Known for high efficiency and biocompatibility.
+
+**Related**: [Click Chemistry Details](/science/chemistry/click-chemistry)
+
+### Core Cross-Linking
+The second stage of MINP synthesis, polymerizing the interior using radical chemistry (C-C bond formation). Uses smaller query radius (typically 10 Å) than surface cross-linking.
+
+**Contrast**: [Surface Cross-Linking](#surface-cross-linking)
+
+### Coverage
+Percentage of reactive atoms that successfully pair and form bonds. LNKD typically achieves 88-95% coverage.
+
+**Formula**: Coverage = (2 × pairs) / total_reactive_atoms × 100%
+
+---
+
+## D
+
+### DVB (Divinylbenzene)
+A common cross-linking monomer with two vinyl groups (C=C double bonds). Used in core cross-linking for radical polymerization. Comes in ortho (DVO) and para (DVP) isomers.
+
+---
+
+## G
+
+### Greedy Algorithm
+LNKD's selection strategy: iteratively choose the highest-probability pair, accept it, update affected pairs, and repeat. Not globally optimal but fast (O(m log n)) and achieves high coverage.
+
+**Related**: [Greedy Selection Strategy](/science/algorithm/algorithm-concepts#greedy-selection-strategy)
+
+---
+
+## H
+
+### Hydrogen Saturation
+Adding hydrogen atoms to unpaired radicals (vinyl carbons that didn't find bonding partners) to prevent unrealistic chemistry in MD simulations. Required post-processing step for core cross-linking.
+
+**Why needed**: Radicals with unpaired electrons are highly reactive and can cause MD simulation instability.
+
+---
+
+## I
+
+### Isolatedness
+A topological measure of how many external bonds a chain currently has. Higher isolatedness = fewer existing bonds. LNKD's bond potential includes an isolatedness term to promote uniform cross-linking.
+
+**Formula**: Isolatedness = 8 - (current connectivity)
+
+### Isolation Weight (W)
+User parameter (0.0-1.0) controlling the strength of preference for bonding to isolated chains. Typical value: 0.03 (slight preference).
+
+**Effect**:
+- W = 0: Pure distance-based selection
+- W = 0.03: Balanced (recommended)
+- W > 0.1: Strong preference, may reduce coverage
+
+---
+
+## K
+
+### KD-Tree
+K-dimensional tree - a spatial data structure that partitions 3D space for efficient neighbor queries. LNKD's core innovation for achieving O(n log n) complexity.
+
+**Key advantage**: Find nearby atoms in O(log n) time instead of O(n) linear search.
+
+**Related**: [KD-Trees Explained](/science/algorithm/algorithm-concepts#kd-trees)
+
+---
+
+## M
+
+### Max Heap
+A binary tree data structure where parent nodes have higher values than children. LNKD uses a max heap to efficiently access the highest-probability pair at each iteration.
+
+**Complexity**: O(1) to peek max, O(log n) to pop and reheapify.
+
+### MINP (Molecularly Imprinted Nanoparticle)
+Synthetic polymer nanoparticles (5-50 nm) with designed binding sites that mimic biological recognition. Created by polymerizing around a template molecule, then removing the template.
+
+**Applications**: Sensors, drug delivery, separation, artificial antibodies.
+
+**Related**: [MIP Background](/science/chemistry/mip-background)
+
+---
+
+## O
+
+### O(n log n) Complexity
+Computational complexity notation meaning that doubling the number of atoms (n) increases runtime by approximately 2.1× (not 4× as with O(n²) methods).
+
+**Pronunciation**: "Big-O of n log n"
+
+**Practical meaning**: LNKD scales efficiently to large polymer systems.
+
+---
+
+## P
+
+### Polymer Chain
+See [Chain](#chain)
+
+---
+
+## Q
+
+### Query Radius (QR)
+Maximum distance (in angstroms) LNKD searches for potential bonding partners. Atoms farther apart than the query radius won't be considered.
+
+**Typical values**:
+- Core: 10 Å (short-range radical coupling)
+- Surface: 15 Å (longer-range click chemistry)
+
+**Trade-off**: Larger radius captures more pairs but increases computation time.
+
+---
+
+## R
+
+### Radical
+An atom with an unpaired electron. In LNKD context, refers to vinyl carbons that didn't find bonding partners during core cross-linking prediction. Listed in `radical_output.txt`.
+
+**Post-processing**: Requires hydrogen saturation.
+
+### Radical Polymerization
+Chemical reaction where vinyl groups (C=C) form C-C single bonds via radical mechanism. Used for core cross-linking in MINPs.
+
+**Related**: [Radical Polymerization Details](/science/chemistry/radical-polymerization)
+
+### Reactive Atoms
+Atoms in your polymer system that can participate in cross-linking reactions. You specify these atoms by creating reactive atom definition files.
+
+**Examples**:
+- Vinyl carbons (CU, CV) for radical polymerization
+- Azide nitrogens (N01-N03) for click chemistry
+- Alkyne carbons (C14, C16) for click chemistry
+
+---
+
+## S
+
+### Surface Cross-Linking
+The first stage of MINP synthesis, cross-linking the outer shell using click chemistry (azide-alkyne cycloaddition). Uses larger query radius (typically 15 Å) than core cross-linking.
+
+**Purpose**: Creates rigid shell to confine the core during subsequent polymerization.
+
+---
+
+## T
+
+### Triazole
+A 5-membered heterocyclic ring containing three nitrogen atoms and two carbons, formed by click chemistry. Each click reaction creates TWO bonds (two N-C bonds forming the ring).
+
+**Why two bonds?** The triazole ring closes by forming bonds between the azide nitrogen and BOTH alkyne carbons.
+
+---
+
+## V
+
+### Vinyl Carbon
+A carbon atom in a C=C double bond (alkene). In radical polymerization, vinyl carbons form new C-C single bonds with other vinyl carbons. DVB has two vinyl groups, providing four reactive vinyl carbons per molecule.
+
+**Notation**: Often labeled CU (unsubstituted) and CV (vinyl position) in PDB files.
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Algorithm Concepts" icon="lightbulb" href="/science/algorithm/algorithm-concepts">
+    Detailed explanations of KD-trees, max heaps, and greedy selection
+  </Card>
+
+  <Card title="MIP Background" icon="flask" href="/science/chemistry/mip-background">
+    History and principles of molecular imprinting
+  </Card>
+
+  <Card title="First Prediction Guide" icon="play" href="/first-prediction">
+    Practical guide to defining reactive atoms and parameters
+  </Card>
+
+  <Card title="FAQ" icon="circle-question" href="/faq">
+    Common questions about using LNKD
+  </Card>
+</CardGroup>

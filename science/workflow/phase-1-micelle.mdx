@@ -1,0 +1,386 @@
+---
+title: "Phase 1: Micelle Preparation"
+description: "Assembly and equilibration of initial MINP micelle structure"
+---
+
+## Overview
+
+Phase 1 creates the starting structure for MINP synthesis: a micelle containing the template molecule surrounded by surfactants and cross-linkers.
+
+**Goal**: Equilibrated structure with reactive groups positioned for cross-linking.
+
+**Tools**: PACKMOL, GROMACS (pdb2gmx, grompp, mdrun)
+
+**Duration**: 1-2 days
+
+---
+
+## PACKMOL Assembly
+
+PACKMOL is a molecular packing tool that assembles multi-component systems with spatial constraints.
+
+### System Composition
+
+Typical MINP micelle:
+- **1 template molecule** (center)
+- **20-40 surfactant molecules** (shell around template)
+- **50-100 cross-linker molecules** (DVB, EGDMA)
+- **Optional**: Solvent molecules (water, organic)
+
+### PACKMOL Input Script
+
+```bash
+# minp_assembly.inp
+tolerance 2.0
+filetype pdb
+output initial_micelle.pdb
+
+# Template at center
+structure template.pdb
+  number 1
+  center
+  fixed 0 0 0 0 0 0
+end structure
+
+# Surfactants around template (within 20 Å sphere)
+structure surfactant.pdb
+  number 30
+  inside sphere 0 0 0 20
+  atoms 1 10  # Head group near template
+    below plane 0 0 0 0 0 1  # Constrain orientation
+  end atoms
+end structure
+
+# Cross-linkers distributed
+structure dvb.pdb
+  number 80
+  inside sphere 0 0 0 25
+end structure
+
+# Optional: Water shell
+structure water.pdb
+  number 500
+  inside sphere 0 0 0 30
+  outside sphere 0 0 0 20
+end structure
+```
+
+### Running PACKMOL
+
+```bash
+packmol < minp_assembly.inp
+```
+
+**Output**: `initial_micelle.pdb` - assembled but un-equilibrated structure
+
+<Warning>
+  Initial PACKMOL output has overlaps and unrealistic geometry. MD equilibration is essential.
+</Warning>
+
+---
+
+## Topology Generation
+
+Use GROMACS `pdb2gmx` to generate force field topology.
+
+### Force Field Selection
+
+**Recommended**: GAFF2 (General Amber Force Field) with RESP charges
+
+**Why**:
+- Organic molecules (surfactants, cross-linkers)
+- Good parameterization for vinyl/azide groups
+- Compatible with RESP partial charges from quantum calculations
+
+### Generate Topology
+
+```bash
+# Convert PDB to GROMACS topology
+gmx pdb2gmx -f initial_micelle.pdb \
+            -o processed.gro \
+            -p topol.top \
+            -ff gaff2 \
+            -water tip3p
+```
+
+**Output Files**:
+- `processed.gro` - Structure with correct atom naming
+- `topol.top` - Topology (bonds, angles, charges)
+- `posre.itp` - Position restraints (if requested)
+
+<Accordion title="What if GAFF2 is not available?">
+  **Alternative force fields**:
+  1. **OPLS-AA**: Good for organic molecules, widely available
+  2. **CHARMM36**: General purpose, stable
+  3. **Amber ff14SB**: Protein-centric but handles organics
+
+  **Custom parameterization**:
+  - Use ANTECHAMBER for RESP charges
+  - Generate GAFF2 parameters manually
+  - Convert to GROMACS format with `acpype`
+</Accordion>
+
+---
+
+## MD Relaxation
+
+Equilibrate the assembled structure through three stages.
+
+### Stage 1: Energy Minimization
+
+**Purpose**: Remove steric clashes and bad contacts.
+
+```bash
+# em.mdp
+integrator  = steep
+emtol       = 1000.0    ; kJ/mol/nm
+emstep      = 0.01      ; nm
+nsteps      = 50000
+
+# Neighbor searching
+cutoff-scheme = Verlet
+nstlist      = 10
+ns_type      = grid
+pbc          = xyz
+rlist        = 1.2
+
+# Electrostatics
+coulombtype  = PME
+rcoulomb     = 1.2
+
+# VdW
+vdw-type     = Cut-off
+rvdw         = 1.2
+```
+
+```bash
+gmx grompp -f em.mdp -c processed.gro -p topol.top -o em.tpr
+gmx mdrun -v -deffnm em
+```
+
+**Check convergence**:
+```bash
+gmx energy -f em.edr -o potential.xvg
+# Select "Potential" and check final value < -1e6 kJ/mol
+```
+
+---
+
+### Stage 2: NVT Equilibration (Heating)
+
+**Purpose**: Heat system to target temperature while maintaining volume.
+
+```bash
+# nvt.mdp
+integrator  = md
+dt          = 0.002     ; 2 fs
+nsteps      = 250000    ; 500 ps
+
+# Temperature coupling
+tcoupl      = V-rescale
+tc-grps     = System
+tau_t       = 0.1
+ref_t       = 300
+
+# No pressure coupling (NVT)
+pcoupl      = no
+
+# Constraints
+constraints     = h-bonds
+constraint-algorithm = LINCS
+
+# Output
+nstxout     = 5000
+nstvout     = 5000
+nstenergy   = 1000
+nstlog      = 1000
+```
+
+```bash
+gmx grompp -f nvt.mdp -c em.gro -p topol.top -o nvt.tpr
+gmx mdrun -v -deffnm nvt
+```
+
+**Monitor temperature**:
+```bash
+gmx energy -f nvt.edr -o temperature.xvg
+# Select "Temperature" - should stabilize around 300K
+```
+
+---
+
+### Stage 3: NPT Equilibration (Pressurization)
+
+**Purpose**: Equilibrate pressure and density.
+
+```bash
+# npt.mdp
+integrator  = md
+dt          = 0.002
+nsteps      = 2500000   ; 5 ns (can extend to 10-50 ns)
+
+# Temperature coupling
+tcoupl      = V-rescale
+tc-grps     = System
+tau_t       = 0.1
+ref_t       = 300
+
+# Pressure coupling
+pcoupl      = Parrinello-Rahman
+pcoupltype  = isotropic
+tau_p       = 2.0
+ref_p       = 1.0
+compressibility = 4.5e-5
+
+# Rest same as NVT
+```
+
+```bash
+gmx grompp -f npt.mdp -c nvt.gro -p topol.top -o npt.tpr
+gmx mdrun -v -deffnm npt
+```
+
+**Monitor equilibration**:
+```bash
+# Check density
+gmx energy -f npt.edr -o density.xvg
+
+# Check pressure
+gmx energy -f npt.edr -o pressure.xvg
+
+# Check RMSD (structure drift)
+gmx rms -s npt.tpr -f npt.xtc -o rmsd.xvg
+```
+
+<Tip>
+  Extend NPT to 10-50 ns if:
+  - Density still drifting
+  - RMSD not plateaued
+  - Reactive groups too far apart (>15 Å)
+</Tip>
+
+---
+
+## Validation Checks
+
+Before proceeding to Phase 2, verify:
+
+<AccordionGroup>
+  <Accordion title="Energy Convergence">
+    **Check**:
+    ```bash
+    gmx energy -f npt.edr
+    ```
+
+    **Good signs**:
+    - Potential energy stable (no drift)
+    - Kinetic energy matches 3/2 kT per atom
+    - Total energy conserved (small fluctuations)
+  </Accordion>
+
+  <Accordion title="Reactive Group Proximity">
+    **Check**: Are reactive atoms within bonding distance?
+
+    ```bash
+    # Measure distances between vinyl/azide groups
+    gmx mindist -f npt.gro \
+                -s npt.tpr \
+                -od mindist.xvg \
+                -on numcont.xvg \
+                -d 1.5  # Search within 15 Å
+    ```
+
+    **Target**: Most reactive groups within 10-15 Å of partners
+  </Accordion>
+
+  <Accordion title="Structure Integrity">
+    **Visual inspection** with PyMOL/VMD:
+    - Template remains central
+    - Surfactants form shell
+    - No phase separation
+    - Micelle shape roughly spherical
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Output for Phase 2
+
+**Final equilibrated structure**: `npt.gro` or last frame of `npt.xtc`
+
+**Required for LNKD**:
+- PDB format structure
+- Reactive atom definitions (create based on residue/atom names)
+
+```bash
+# Convert to PDB for LNKD
+gmx editconf -f npt.gro -o micelle_relaxed.pdb
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="PACKMOL fails to converge">
+    **Symptoms**: "Could not fit molecule" errors
+
+    **Solutions**:
+    1. Increase `tolerance` (try 2.5 or 3.0)
+    2. Reduce molecule counts
+    3. Increase sphere radius
+    4. Remove tight spatial constraints
+  </Accordion>
+
+  <Accordion title="Energy minimization doesn't converge">
+    **Symptoms**: Fmax never reaches emtol
+
+    **Solutions**:
+    1. Check for missing atoms in topology
+    2. Verify force field parameters exist for all residues
+    3. Increase emtol to 5000 temporarily
+    4. Check for unrealistic geometries (use `gmx check`)
+  </Accordion>
+
+  <Accordion title="System explodes during NVT">
+    **Symptoms**: Temperature skyrockets, atoms fly apart
+
+    **Solutions**:
+    1. Reduce timestep to 0.001 ps
+    2. Use stronger temperature coupling (tau_t = 0.05)
+    3. Add position restraints on template
+    4. Check for bad charges in topology
+  </Accordion>
+
+  <Accordion title="Density never stabilizes in NPT">
+    **Symptoms**: Density trends up/down continuously
+
+    **Solutions**:
+    1. Extend simulation (try 20-50 ns)
+    2. Check compressibility value (4.5e-5 for water-like)
+    3. Verify box size is reasonable
+    4. Check for vacuum in box (solvation issue)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Phase 2: Cross-Linking" icon="link" href="/science/workflow/phase-2-crosslinking">
+    Use LNKD to predict cross-linking bonds
+  </Card>
+
+  <Card title="MIP Background" icon="flask" href="/science/chemistry/mip-background">
+    Understand MINP synthesis chemistry
+  </Card>
+
+  <Card title="GROMACS Tutorials" icon="book" href="http://www.mdtutorials.com/gmx/">
+    External GROMACS documentation
+  </Card>
+
+  <Card title="PACKMOL Manual" icon="file-lines" href="http://leandro.iqm.unicamp.br/m3g/packmol/userguide.shtml">
+    Official PACKMOL guide
+  </Card>
+</CardGroup>
