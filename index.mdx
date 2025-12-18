@@ -1,97 +1,134 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "LNKD: Resource-Efficient Polymer Cross-Linking Prediction"
+description: "Fast, accurate prediction of polymer cross-linking bonds using spatial data structures"
 ---
 
-## Setting up
+## What is LNKD?
 
-Get your documentation site up and running in minutes.
+**LNKD** (Linking Nodes in KD-trees) is a computational algorithm that predicts which [reactive atoms](/first-prediction#understanding-reactive-atoms) in a polymer system will form covalent cross-links. It achieves this with **O(n log n)** computational complexity (meaning doubling system size increases runtime by only ~2× instead of 4×) using [KD-tree](/science/algorithm/algorithm-concepts#kd-trees) spatial data structures - dramatically faster than traditional O(n²) pairwise comparison methods.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
+**Published**: [Journal of Chemical Information and Modeling, 2025](https://pubs.acs.org/doi/10.1021/acs.jcim.5c01376)
+
+<CardGroup cols={3}>
+  <Card title="For Researchers" icon="flask" href="/science/what-is-lnkd">
+    Understand the chemistry, algorithm theory, and validation results
+  </Card>
+  <Card title="For Developers" icon="code" href="/developer/architecture/architecture-overview">
+    Explore the code architecture, API, and extend LNKD for your system
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Install and run your first prediction in 5 minutes
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="Resource Efficient" icon="bolt">
+    Uses [KD-tree](/science/algorithm/algorithm-concepts#kd-trees) spatial queries and [max heap](/science/algorithm/algorithm-concepts#priority-queues-max-heap) selection to achieve O(n log n) complexity instead of O(n²) pairwise comparisons.
+  </Accordion>
+
+  <Accordion title="High Coverage" icon="bullseye">
+    Achieves 88-95% pairing rates of reactive atoms while enforcing chemical constraints. See [validation results](/science/showcase/showcase-gallery#experimental-validation) for experimental confirmation.
+  </Accordion>
+
+  <Accordion title="Dual Cross-Linking" icon="link">
+    Handles both [radical polymerization](/science/chemistry/radical-polymerization) (C-C bonds) and [azide-alkyne cycloaddition](/science/chemistry/click-chemistry) (click chemistry).
+  </Accordion>
+
+  <Accordion title="MINP Modeling" icon="dna">
+    Specifically designed for Molecularly Imprinted Nanoparticle (MINP) synthesis workflows.
+  </Accordion>
+</AccordionGroup>
+
+## Algorithmic Efficiency
+
+LNKD leverages spatial data structures for computational efficiency:
+
+- **Complexity**: O(n log n) neighbor queries vs. O(n²) pairwise comparisons
+- **Approach**: KD-tree spatial indexing + greedy max-heap selection
+- **Scalability**: Logarithmic scaling enables predictions on large polymer systems
+
+<Tip>
+  For detailed performance benchmarks and speedup measurements, see the [published paper](https://pubs.acs.org/doi/10.1021/acs.jcim.5c01376).
+</Tip>
+
+## Primary Application: MINPs
+
+LNKD was developed for **Molecularly Imprinted Nanoparticles (MINPs)** - synthetic materials with designed binding sites that mimic biological recognition (like antibodies or enzymes).
+
+<CardGroup cols={2}>
+  <Card title="Learn About MINPs" icon="circle-info" href="/science/chemistry/mip-background">
+    What are molecularly imprinted polymers and why do they matter?
+  </Card>
+  <Card title="MINP Workflow" icon="diagram-project" href="/science/workflow/workflow-overview">
+    See how LNKD fits into the complete MINP modeling protocol
+  </Card>
+</CardGroup>
+
+## Broader Applications
+
+While designed for MINPs, LNKD applies to any cross-linked polymer system:
+- Epoxy resins
+- Hydrogels
+- Thermoset networks
+- Crosslinked elastomers
+
+## Getting Started
+
+<Steps>
+  <Step title="Install LNKD">
+    Clone the repository and install dependencies
+    ```bash
+    git clone https://github.com/sdonglab/LNKD.git
+    cd LNKD
+    pip install -r requirements.txt
+    ```
+  </Step>
+
+  <Step title="Run Your First Prediction">
+    Process a sample structure with reactive atoms defined
+    ```bash
+    python3 ./pair_prediction/predict_for_single_surfactant.py \
+        ./example/input/structure.pdb \
+        ./example/input/core_reactive.txt \
+        -core_QR 10 -core_W 0.03 \
+        ./example/input/sur_reactive.txt \
+        -sur_QR 15 -sur_W 0.03 \
+        -o ./example/output/
+    ```
+  </Step>
+
+  <Step title="Explore Results">
+    View predicted pairs and unpaired radicals
+  </Step>
+</Steps>
+
+<Card title="Full Quickstart Guide" icon="book" href="/quickstart">
+  Detailed installation and first prediction walkthrough
 </Card>
 
-## Make it yours
+## Citation
 
-Design a docs site that looks great and empowers your users.
+If you use LNKD in your research, please cite:
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+```bibtex
+@article{stevens2025lnkd,
+  title={Modeling Molecularly Imprinted Nanoparticles with LNKD},
+  author={Stevens, Brenden and Dong, Shengqiang},
+  journal={Journal of Chemical Information and Modeling},
+  year={2025},
+  doi={10.1021/acs.jcim.5c01376}
+}
+```
 
-## Create beautiful pages
+## Support
 
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/sdonglab/LNKD/issues">
+    Report bugs or request features
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Research Paper" icon="file-lines" href="https://pubs.acs.org/doi/10.1021/acs.jcim.5c01376">
+    Full algorithm details and validation
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+</CardGroup>

@@ -1,0 +1,454 @@
+---
+title: "Phase 2: Cross-Linking with LNKD"
+description: "LNKD prediction and constrained MD for surface and core cross-linking"
+---
+
+## Overview
+
+Phase 2 transforms the equilibrated micelle into a cross-linked nanoparticle network using LNKD predictions followed by constrained MD simulations.
+
+**Two-Stage Process**:
+1. **Surface Cross-Linking**: Azide-alkyne cycloaddition (click chemistry)
+2. **Core Cross-Linking**: Radical polymerization (C-C bonds)
+
+**Tools**: LNKD, GROMACS, PLUMED
+
+**Duration**: LNKD predictions + 10-20 ns MD (~1-2 days)
+
+---
+
+## Stage 1: Surface Cross-Linking
+
+### Step 1: Prepare Reactive Atom Definitions
+
+Create `sur_reactive.txt` defining azide and alkyne reactive atoms:
+
+```text
+# Surface reactive atoms for click chemistry
+# Format: ATOM_NAME RESIDUE_NAME
+
+# Azide nitrogens on monoazide linkers
+N01 MON
+N02 MON
+N03 MON
+
+# Alkyne carbons on surfactants
+C14 SUR
+C16 SUR
+```
+
+<Tip>
+  Open your PDB in a text editor to find exact atom and residue names (columns 13-16 and 18-20).
+</Tip>
+
+---
+
+### Step 2: Run LNKD Surface Prediction
+
+```bash
+python3 ./pair_prediction/predict_for_single_surfactant.py \
+    micelle_relaxed.pdb \
+    dummy_core.txt \          # Empty file (no core prediction yet)
+    -core_QR 10 -core_W 0.03 \
+    sur_reactive.txt \
+    -sur_QR 15 \              # Larger radius for surface
+    -sur_W 0.03 \
+    -o ./surface_output/
+```
+
+**Output Files**:
+- `surface_pair_output.txt` - Predicted azide-alkyne pairs
+- `pair_output.txt` - All pairs (same as surface in this case)
+
+**Expected**: ~100-150 surface pairs (representing 50-75 click reactions, since each reaction creates TWO bonds)
+
+---
+
+### Step 3: Update Topology - Add Triazole Bonds
+
+Click chemistry creates triazole rings. You must manually add bonds to GROMACS topology.
+
+**From `surface_pair_output.txt`**:
+```
+59 1054
+4602 5222
+...
+```
+
+**Edit `topol.top`** - find `[ bonds ]` section for each molecule:
+
+```
+[ bonds ]
+; ai  aj  funct  c0      c1
+; ... existing bonds ...
+
+; LNKD-predicted surface bonds (triazole formation)
+59   1054   1   0.140   400000  ; N-C bond in triazole
+4602 5222   1   0.140   400000
+```
+
+**Bond parameters**:
+- Type: 1 (harmonic)
+- Length: 0.140 nm (N-C bond in triazole)
+- Force constant: 400,000 kJ/mol/nm²
+
+<Warning>
+  Click chemistry creates TWO bonds per reaction (5-membered ring). LNKD lists both. Make sure to add all predicted pairs to topology.
+</Warning>
+
+---
+
+### Step 4: Generate PLUMED Distance Constraints
+
+Use LNKD's built-in PLUMED generation (if available) or create manually:
+
+```python
+# plumed.dat for surface constraints
+# Distance restraints for click chemistry bonds
+
+# Restraint for pair 59-1054
+DISTANCE ATOMS=59,1054 LABEL=d1
+UPPER_WALLS ARG=d1 AT=0.35 KAPPA=1000.0 EXP=2 LABEL=uwall1
+
+# Restraint for pair 4602-5222
+DISTANCE ATOMS=4602,5222 LABEL=d2
+UPPER_WALLS ARG=d2 AT=0.35 KAPPA=1000.0 EXP=2 LABEL=uwall2
+
+# ... repeat for all surface pairs
+
+PRINT ARG=d1,d2,... FILE=distances.dat STRIDE=100
+```
+
+**Parameters**:
+- `AT=0.35`: Upper wall at 3.5 Å (allows some flexibility)
+- `KAPPA=1000`: Force constant (kJ/mol/nm²)
+- `EXP=2`: Harmonic restraint
+
+---
+
+### Step 5: Constrained MD - Surface
+
+Run MD with PLUMED constraints to enforce predicted bonds.
+
+```bash
+# md_surface_constrain.mdp
+integrator  = md
+dt          = 0.002
+nsteps      = 2500000   ; 5 ns (can extend to 10 ns)
+
+; Temperature
+tcoupl      = V-rescale
+tc-grps     = System
+tau_t       = 0.1
+ref_t       = 300
+
+; Pressure
+pcoupl      = Parrinello-Rahman
+tau_p       = 2.0
+ref_p       = 1.0
+
+; PLUMED
+; Add to run command: -plumed plumed.dat
+```
+
+```bash
+gmx grompp -f md_surface_constrain.mdp \
+           -c micelle_relaxed.gro \
+           -p topol.top \
+           -o surface_md.tpr
+
+gmx mdrun -v -deffnm surface_md -plumed plumed.dat
+```
+
+**Monitor Convergence**:
+```bash
+# Check distances
+tail distances.dat
+
+# All distances should be < 3.5 Å and stable
+```
+
+**Output**: `surface_md.gro` - Structure with surface cross-links enforced
+
+---
+
+## Stage 2: Core Cross-Linking
+
+### Step 1: Define Core Reactive Atoms
+
+Create `core_reactive.txt` for vinyl carbons:
+
+```text
+# Core reactive atoms for radical polymerization
+# Vinyl carbons on DVB
+
+CU DVO    # Vinyl carbon (unsubstituted)
+CV DVO    # Vinyl carbon (vinyl position)
+CU DVP    # ortho-divinylbenzene
+CV DVP
+CU MVN    # Methacrylate vinyl carbons
+CV MVN
+```
+
+---
+
+### Step 2: Run LNKD Core Prediction
+
+```bash
+python3 ./pair_prediction/predict_for_single_surfactant.py \
+    surface_md.gro \           # Use surface-crosslinked structure
+    core_reactive.txt \
+    -core_QR 10 \              # Tighter radius for core
+    -core_W 0.03 \
+    dummy_surface.txt \        # Empty (surface already done)
+    -sur_QR 15 -sur_W 0.03 \
+    -o ./core_output/
+```
+
+**Output Files**:
+- `core_pair_output.txt` - Predicted C-C pairs
+- `radical_output.txt` - Unpaired vinyl carbons (radicals)
+
+**Expected**:
+- ~120-160 core pairs
+- ~40-80 radicals (7-10% unpaired is normal)
+
+---
+
+### Step 3: Hydrogen Saturation of Radicals
+
+Unpaired radicals require H-termination to prevent unrealistic chemistry.
+
+```python
+# h_saturate.py - Custom script to add hydrogens
+import MDAnalysis as mda
+
+pdb = mda.Universe('surface_md.gro')
+
+# Read radicals from radical_output.txt
+with open('core_output/radical_output.txt') as f:
+    radicals = [int(line.strip()) for line in f if line.strip().isdigit()]
+
+for radical_idx in radicals:
+    atom = pdb.atoms[radical_idx - 1]  # 0-indexed
+
+    # Add hydrogen at appropriate geometry
+    # (Implementation depends on molecular geometry library)
+    add_hydrogen_to_vinyl_carbon(atom)
+
+pdb.atoms.write('core_saturated.pdb')
+```
+
+<Accordion title="Alternative: Manual H-saturation in PyMOL">
+  1. Load structure in PyMOL
+  2. Select radical atoms: `select radicals, id 4502+4642+4704+...`
+  3. Add hydrogens: `h_add radicals`
+  4. Optimize geometry: `sculpt_activate radicals`
+  5. Save: `save core_saturated.pdb`
+</Accordion>
+
+---
+
+### Step 4: Update Topology - Add C-C Bonds
+
+Edit `topol.top` to include core bonds:
+
+```
+[ bonds ]
+; ... existing bonds + surface bonds ...
+
+; LNKD-predicted core bonds (C-C single bonds)
+137  249    1   0.153   300000  ; C-C vinyl radical coupling
+401  587    1   0.153   300000
+```
+
+**C-C Bond Parameters**:
+- Length: 0.153 nm (sp³-sp³ C-C)
+- Force constant: 300,000 kJ/mol/nm²
+
+---
+
+### Step 5: Constrained MD - Core
+
+Similar to surface, but with core restraints:
+
+```bash
+# plumed_core.dat
+DISTANCE ATOMS=137,249 LABEL=d1
+UPPER_WALLS ARG=d1 AT=0.35 KAPPA=1000.0 EXP=2
+
+# ... all core pairs
+```
+
+```bash
+gmx grompp -f md_core_constrain.mdp \
+           -c core_saturated.gro \
+           -p topol.top \
+           -o core_md.tpr
+
+gmx mdrun -v -deffnm core_md -plumed plumed_core.dat
+```
+
+**Duration**: 5-10 ns
+
+**Output**: `core_md.gro` - Fully cross-linked MINP structure
+
+---
+
+## Validation
+
+After both stages, verify cross-linking quality:
+
+<AccordionGroup>
+  <Accordion title="Bond Distance Check">
+    ```bash
+    gmx distance -s core_md.tpr \
+                 -f core_md.gro \
+                 -select 'res_com of resname DVB and within 0.35 of res_com of resname SUR' \
+                 -oall distances_all.xvg
+    ```
+
+    **Good**: All LNKD-predicted pairs show distances 2.5-3.5 Å
+  </Accordion>
+
+  <Accordion title="Coverage Analysis">
+    Count bonded vs total reactive atoms:
+
+    ```bash
+    # From LNKD outputs
+    core_pairs=$(wc -l < core_pair_output.txt)
+    radicals=$(wc -l < radical_output.txt)
+    total_reactive=780  # From core_reactive.txt
+
+    coverage=$(echo "scale=2; ($core_pairs * 2) / $total_reactive * 100" | bc)
+    echo "Coverage: $coverage%"
+    ```
+
+    **Target**: 88-95%
+  </Accordion>
+
+  <Accordion title="Structure Integrity">
+    **Visual inspection**:
+    - No unrealistic distortions
+    - Template still centered
+    - Micelle maintains roughly spherical shape
+    - Cross-links distributed throughout
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Complete Phase 2 Script
+
+Automate the entire process:
+
+```bash
+#!/bin/bash
+# phase2_crosslinking.sh
+
+# === SURFACE CROSS-LINKING ===
+echo "Running LNKD surface prediction..."
+python3 $LNKD_PATH/predict_for_single_surfactant.py \
+    micelle_relaxed.pdb \
+    empty.txt \
+    -core_QR 10 -core_W 0.03 \
+    sur_reactive.txt \
+    -sur_QR 15 -sur_W 0.03 \
+    -o surface_output/
+
+echo "Updating topology for surface bonds..."
+python3 update_topology.py surface_pair_output.txt topol.top
+
+echo "Running constrained MD (surface)..."
+gmx grompp -f md_surface.mdp -c micelle_relaxed.gro -p topol.top -o surf.tpr
+gmx mdrun -v -deffnm surf -plumed plumed_surf.dat
+
+# === CORE CROSS-LINKING ===
+echo "Running LNKD core prediction..."
+python3 $LNKD_PATH/predict_for_single_surfactant.py \
+    surf.gro \
+    core_reactive.txt \
+    -core_QR 10 -core_W 0.03 \
+    empty.txt \
+    -sur_QR 15 -sur_W 0.03 \
+    -o core_output/
+
+echo "Saturating radicals..."
+python3 h_saturate.py core_output/radical_output.txt surf.gro core_sat.gro
+
+echo "Updating topology for core bonds..."
+python3 update_topology.py core_pair_output.txt topol.top
+
+echo "Running constrained MD (core)..."
+gmx grompp -f md_core.mdp -c core_sat.gro -p topol.top -o core.tpr
+gmx mdrun -v -deffnm core -plumed plumed_core.dat
+
+echo "Phase 2 complete! Output: core.gro"
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="LNKD predicts zero pairs">
+    **Cause**: Reactive atoms too far apart or query radius too small
+
+    **Solutions**:
+    1. Check reactive atom definitions match PDB
+    2. Visualize reactive atoms in PyMOL
+    3. Increase query radius: -sur_QR 20 or -core_QR 15
+    4. Extend Phase 1 equilibration if atoms aren't close enough
+  </Accordion>
+
+  <Accordion title="MD crashes with PLUMED">
+    **Cause**: Distance restraints too tight or conflicting
+
+    **Solutions**:
+    1. Increase upper wall distance: AT=0.40
+    2. Decrease force constant: KAPPA=500
+    3. Check for duplicate pairs in plumed.dat
+    4. Verify atom indices are correct (check PDB numbering)
+  </Accordion>
+
+  <Accordion title="High radical count (>15%)">
+    **Cause**: Low query radius or clustering
+
+    **Solutions**:
+    1. Increase core query radius to 12-15 Å
+    2. Increase isolation weight: -core_W 0.05
+    3. Check if structure is well-equilibrated (Phase 1)
+  </Accordion>
+
+  <Accordion title="Bonds don't form (distances >5 Å)">
+    **Cause**: Topology bonds not added or PLUMED not active
+
+    **Solutions**:
+    1. Verify topology was updated with new bonds
+    2. Check PLUMED output file for restraint violations
+    3. Extend constrained MD to 10-20 ns
+    4. Increase PLUMED force constant: KAPPA=2000
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Phase 3: Functionalization" icon="flask" href="/science/workflow/phase-3-functionalization">
+    Add functional groups and finalize MINP
+  </Card>
+
+  <Card title="LNKD Algorithm" icon="gear" href="/science/algorithm/how-it-works">
+    Understand how LNKD makes predictions
+  </Card>
+
+  <Card title="PLUMED Documentation" icon="book" href="https://www.plumed.org/">
+    Official PLUMED manual
+  </Card>
+
+  <Card title="MD Integration Guide" icon="code" href="/developer/extending/extending-integration">
+    Advanced MD workflow customization
+  </Card>
+</CardGroup>

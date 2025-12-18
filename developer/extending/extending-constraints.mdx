@@ -1,0 +1,334 @@
+---
+title: "Extending: Custom MD Constraints"
+description: "Generate constraint files for different MD packages"
+---
+
+## Overview
+
+LNKD outputs atom pair predictions. These must be converted to MD-compatible constraint files (PLUMED, AMBER restraints, etc.).
+
+**Current support**: GROMACS + PLUMED
+
+**Extendable to**: AMBER, NAMD, LAMMPS, OpenMM
+
+---
+
+## PLUMED Constraint Generation (Current)
+
+### Manual PLUMED File
+
+```python
+# plumed.dat
+DISTANCE ATOMS=59,1054 LABEL=d1
+UPPER_WALLS ARG=d1 AT=0.35 KAPPA=1000.0 EXP=2
+
+DISTANCE ATOMS=4602,5222 LABEL=d2
+UPPER_WALLS ARG=d2 AT=0.35 KAPPA=1000.0 EXP=2
+
+PRINT ARG=d1,d2 FILE=distances.dat STRIDE=100
+```
+
+---
+
+### Automated Generation
+
+```python
+def generate_plumed_file(pair_file, output_file, upper_wall=0.35, kappa=1000.0):
+    """
+    Generate PLUMED constraint file from LNKD pair predictions.
+
+    Args:
+        pair_file (str): LNKD output (pair_output.txt)
+        output_file (str): PLUMED file to write
+        upper_wall (float): Distance restraint threshold (nm)
+        kappa (float): Force constant (kJ/mol/nm²)
+    """
+    with open(pair_file) as f:
+        pairs = [line.strip().split() for line in f]
+
+    with open(output_file, 'w') as out:
+        out.write("# PLUMED constraints from LNKD predictions\n\n")
+
+        # Distance definitions
+        for i, (atom1, atom2) in enumerate(pairs, 1):
+            out.write(f"DISTANCE ATOMS={atom1},{atom2} LABEL=d{i}\n")
+
+        out.write("\n")
+
+        # Upper wall restraints
+        for i in range(1, len(pairs) + 1):
+            out.write(f"UPPER_WALLS ARG=d{i} AT={upper_wall} KAPPA={kappa} EXP=2 LABEL=uw{i}\n")
+
+        out.write("\n")
+
+        # Print statement
+        distance_labels = ','.join([f"d{i}" for i in range(1, len(pairs) + 1)])
+        out.write(f"PRINT ARG={distance_labels} FILE=distances.dat STRIDE=100\n")
+
+# Usage
+generate_plumed_file('surface_pair_output.txt', 'plumed_surface.dat')
+```
+
+---
+
+## AMBER Restraint Files
+
+### NMRestraint Format
+
+```python
+def generate_amber_restraints(pair_file, output_file, force_constant=100.0, target_dist=3.5):
+    """
+    Generate AMBER distance restraints.
+
+    Args:
+        pair_file (str): LNKD pair output
+        output_file (str): AMBER restraint file
+        force_constant (float): kcal/mol/Å²
+        target_dist (float): Target distance (Å)
+    """
+    with open(pair_file) as f:
+        pairs = [line.strip().split() for line in f]
+
+    with open(output_file, 'w') as out:
+        out.write("# AMBER distance restraints from LNKD\n")
+        out.write("&rst\n")
+
+        for atom1, atom2 in pairs:
+            out.write(f"  iat={atom1},{atom2},\n")
+            out.write(f"  r1=0.0, r2={target_dist-0.5}, r3={target_dist}, r4={target_dist+0.5},\n")
+            out.write(f"  rk2={force_constant}, rk3={force_constant},\n")
+            out.write("/\n")
+
+# Usage
+generate_amber_restraints('core_pair_output.txt', 'restraints.in')
+```
+
+**AMBER input file**:
+```
+&cntrl
+  ...
+  nmropt=1,  # Enable restraints
+&end
+
+&wt type='END' /
+DISANG=restraints.in
+```
+
+---
+
+## NAMD Collective Variables
+
+### Colvars Config
+
+```python
+def generate_namd_colvars(pair_file, output_file, force_constant=10.0, centers_file='centers.dat'):
+    """
+    Generate NAMD colvars configuration.
+
+    Args:
+        pair_file (str): LNKD pair output
+        output_file (str): Colvars config file
+        force_constant (float): kcal/mol/Å²
+        centers_file (str): File to write target distances
+    """
+    with open(pair_file) as f:
+        pairs = [line.strip().split() for line in f]
+
+    with open(output_file, 'w') as out:
+        out.write("# NAMD colvars from LNKD predictions\n\n")
+
+        for i, (atom1, atom2) in enumerate(pairs, 1):
+            out.write(f"colvar {{\n")
+            out.write(f"  name dist_{i}\n")
+            out.write(f"  distance {{\n")
+            out.write(f"    group1 {{ atomNumbers {atom1} }}\n")
+            out.write(f"    group2 {{ atomNumbers {atom2} }}\n")
+            out.write(f"  }}\n")
+            out.write(f"}}\n\n")
+
+            out.write(f"harmonic {{\n")
+            out.write(f"  colvars dist_{i}\n")
+            out.write(f"  centers {centers_file}\n")
+            out.write(f"  forceConstant {force_constant}\n")
+            out.write(f"}}\n\n")
+
+# Usage
+generate_namd_colvars('surface_pair_output.txt', 'colvars.in')
+```
+
+---
+
+## OpenMM Custom Forces
+
+```python
+def generate_openmm_restraints(pair_file):
+    """
+    Generate OpenMM Python code for distance restraints.
+
+    Returns:
+        str: Python code to add CustomBondForce
+    """
+    with open(pair_file) as f:
+        pairs = [line.strip().split() for line in f]
+
+    code = '''
+from openmm import CustomBondForce
+import openmm.unit as unit
+
+# Create custom bond force (harmonic restraint)
+restraint_force = CustomBondForce("0.5*k*(r-r0)^2")
+restraint_force.addPerBondParameter("k")   # Force constant
+restraint_force.addPerBondParameter("r0")  # Target distance
+
+# Add LNKD-predicted pairs
+'''
+
+    for atom1, atom2 in pairs:
+        code += f"restraint_force.addBond({int(atom1)-1}, {int(atom2)-1}, "
+        code += f"[100.0*unit.kilocalories_per_mole/unit.angstrom**2, 3.5*unit.angstrom])\n"
+
+    code += "\n# Add force to system\nsystem.addForce(restraint_force)\n"
+
+    return code
+
+# Usage
+openmm_code = generate_openmm_restraints('core_pair_output.txt')
+with open('add_restraints.py', 'w') as f:
+    f.write(openmm_code)
+```
+
+---
+
+## LAMMPS Fix Spring
+
+```python
+def generate_lammps_restraints(pair_file, output_file, force_constant=100.0):
+    """
+    Generate LAMMPS fix spring commands.
+
+    Args:
+        pair_file (str): LNKD pair output
+        output_file (str): LAMMPS input commands
+        force_constant (float): kcal/mol/Å²
+    """
+    with open(pair_file) as f:
+        pairs = [line.strip().split() for line in f]
+
+    with open(output_file, 'w') as out:
+        out.write("# LAMMPS spring restraints from LNKD\n\n")
+
+        for i, (atom1, atom2) in enumerate(pairs, 1):
+            out.write(f"fix spring{i} all spring couple {atom1} {atom2} "
+                     f"{force_constant} 3.5 3.5\n")
+
+# Usage
+generate_lammps_restraints('surface_pair_output.txt', 'restraints.lammps')
+```
+
+---
+
+## Generic Constraint Writer
+
+```python
+class ConstraintWriter:
+    """
+    Abstract base class for constraint generation.
+    """
+
+    def __init__(self, pair_file, output_file):
+        self.pair_file = pair_file
+        self.output_file = output_file
+        self.pairs = self.load_pairs()
+
+    def load_pairs(self):
+        with open(self.pair_file) as f:
+            return [line.strip().split() for line in f]
+
+    def write(self):
+        """Subclass must implement."""
+        raise NotImplementedError
+
+
+class PLUMEDWriter(ConstraintWriter):
+    def write(self, upper_wall=0.35, kappa=1000.0):
+        # ... (implementation from above)
+        pass
+
+
+class AMBERWriter(ConstraintWriter):
+    def write(self, force_constant=100.0):
+        # ... (implementation from above)
+        pass
+
+
+# Usage
+writer = PLUMEDWriter('pairs.txt', 'plumed.dat')
+writer.write(upper_wall=0.35, kappa=1000.0)
+```
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Validate Atom Indices">
+    **Check** that LNKD atom serials match MD package indexing.
+
+    ```python
+    def validate_indices(pair_file, pdb_file):
+        """Check atom serials exist in PDB."""
+        from tools.pdb import PDB
+
+        pdb = PDB(pdb_file)
+        pdb.parse()
+
+        max_serial = max(atom.serial for chain in pdb.chains.values()
+                        for atom in chain.atoms.values())
+
+        with open(pair_file) as f:
+            for line in f:
+                atom1, atom2 = map(int, line.split())
+                assert 1 <= atom1 <= max_serial
+                assert 1 <= atom2 <= max_serial
+
+        print("All atom indices valid!")
+    ```
+  </Accordion>
+
+  <Accordion title="2. Test Restraints Before Production">
+    **Short test run** (100 ps) to verify restraints don't break simulation.
+
+    ```bash
+    # GROMACS
+    gmx mdrun -deffnm test -plumed plumed.dat -nsteps 50000
+
+    # Check distances converged
+    tail distances.dat
+    ```
+  </Accordion>
+
+  <Accordion title="3. Provide Force Constant Tuning">
+    **Too weak**: Bonds don't form (distances > 5 Å)
+    **Too strong**: Simulation unstable (forces > 10⁴ kJ/mol/nm)
+
+    **Optimal range**: 500-2000 kJ/mol/nm² (GROMACS/PLUMED)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Integration Guide" icon="puzzle-piece" href="/developer/extending/extending-integration">
+    Integrate LNKD into MD workflows
+  </Card>
+
+  <Card title="Phase 2 Workflow" icon="2" href="/science/workflow/phase-2-crosslinking">
+    See constraints in action
+  </Card>
+
+  <Card title="Extending Reactions" icon="flask" href="/developer/extending/extending-reactions">
+    Custom chemistry types
+  </Card>
+</CardGroup>

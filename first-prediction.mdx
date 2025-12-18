@@ -1,0 +1,328 @@
+---
+title: "Your First Custom Prediction"
+description: "Learn how to define reactive atoms and tune parameters for your own system"
+---
+
+## Prerequisites
+
+Before running your first custom prediction, ensure you have:
+
+<CardGroup cols={2}>
+  <Card title="LNKD Installed" icon="check">
+    Completed the [installation guide](/installation)
+  </Card>
+  <Card title="PDB Structure" icon="file">
+    A PDB file with your polymer system
+  </Card>
+  <Card title="Reactive Atom Knowledge" icon="atom">
+    Understanding of which atoms should cross-link
+  </Card>
+  <Card title="Basic Chemistry" icon="flask">
+    Familiarity with your reaction type
+  </Card>
+</CardGroup>
+
+---
+
+## Understanding Reactive Atoms
+
+LNKD predicts bonds between **reactive atoms** - atoms you specify that can participate in cross-linking reactions.
+
+### PDB Atom Name Format
+
+PDB files use a specific format for atom information. LNKD reads atom names from columns 13-16 and residue names from columns 18-20.
+
+**Example PDB line**:
+```text
+ATOM     59  CU  DVO A   1      12.345  23.456  34.567  1.00  0.00           C
+         ↑    ↑   ↑
+      Serial  │  Residue name
+            Atom name
+```
+
+**What LNKD reads**:
+- **Atom name**: `CU` (columns 13-16)
+- **Residue name**: `DVO` (columns 18-20)
+- **Serial number**: `59` (used in output to identify bonded atoms)
+
+<Tip>
+  Open your PDB file in a text editor to identify atom and residue names before creating your reactive atom definitions. Look for the atom types you want to cross-link and note their exact names.
+</Tip>
+
+---
+
+## Creating Reactive Atom Files
+
+LNKD requires you to specify reactive atoms in a simple text file format.
+
+### File Format
+
+Each line defines one reactive atom type:
+
+```text
+ATOM_NAME RESIDUE_NAME
+```
+
+### Example: Core Cross-Linking (Radical Polymerization)
+
+For vinyl carbons on divinylbenzene (DVB) monomers:
+
+```text
+CU DVO
+CV DVO
+CU DVP
+CV DVP
+```
+
+**Explanation**:
+- `CU` and `CV` are the two vinyl carbon atoms on the C=C double bond
+- `DVO` = ortho-divinylbenzene
+- `DVP` = para-divinylbenzene
+
+### Example: Surface Cross-Linking (Click Chemistry)
+
+For azide-alkyne cycloaddition:
+
+```text
+N01 MON    # Azide nitrogen on monoazide linker
+N02 MON
+N03 MON
+C14 SUR    # Alkyne carbon on surfactant
+C16 SUR
+```
+
+<Warning>
+  Atom and residue names are case-sensitive and must exactly match your PDB file.
+</Warning>
+
+---
+
+## Choosing Parameters
+
+LNKD requires four key parameters for predictions:
+
+### Query Radius (QR)
+
+The maximum distance (in angstroms) for candidate bond searches.
+
+| Value | Effect | When to Use |
+|-------|--------|-------------|
+| 5-8 Å | Very restrictive | Dense, well-packed systems |
+| 10-12 Å | Moderate (recommended) | Most systems |
+| 15-20 Å | Permissive | Sparse systems or long-range bonds |
+
+<Tip>
+  Start with 10 Å for core and 15 Å for surface. Adjust if coverage is too low/high.
+</Tip>
+
+### Isolation Weight (W)
+
+Controls preference for bonding isolated chains (0.0 to 1.0).
+
+| Value | Effect |
+|-------|--------|
+| 0.0 | No preference - pure distance-based |
+| 0.03 | Slight preference (recommended) |
+| 0.1+ | Strong preference - may reduce overall coverage |
+
+<Accordion title="How isolation weight works">
+  Isolation weight adds a bonus to the bond potential for chains with fewer existing bonds, promoting uniform cross-linking throughout the structure.
+
+  Higher values prevent "clustering" but may leave some atoms unpaired. The recommended value of 0.03 balances coverage and uniformity.
+</Accordion>
+
+---
+
+## Running the Prediction
+
+### Command Structure
+
+```bash
+python3 ./pair_prediction/predict_for_single_surfactant.py \
+    <PDB_FILE> \
+    <CORE_REACTIVE_FILE> \
+    -core_QR <CORE_RADIUS> \
+    -core_W <CORE_WEIGHT> \
+    <SURFACE_REACTIVE_FILE> \
+    -sur_QR <SURFACE_RADIUS> \
+    -sur_W <SURFACE_WEIGHT> \
+    -o <OUTPUT_DIR>
+```
+
+### Example with Your Files
+
+Assume you have:
+- `my_system.pdb` - your structure
+- `my_core_reactive.txt` - core reactive atoms
+- `my_surface_reactive.txt` - surface reactive atoms
+
+```bash
+python3 ./pair_prediction/predict_for_single_surfactant.py \
+    my_system.pdb \
+    my_core_reactive.txt \
+    -core_QR 10 \
+    -core_W 0.03 \
+    my_surface_reactive.txt \
+    -sur_QR 15 \
+    -sur_W 0.03 \
+    -o ./output/
+```
+
+<Note>
+  LNKD runs surface cross-linking first, then core cross-linking. This matches the MINP synthesis workflow.
+</Note>
+
+---
+
+## Interpreting Results
+
+### Output Files
+
+LNKD generates four output files:
+
+1. **pair_output.txt** - All predicted pairs (core + surface)
+2. **core_pair_output.txt** - Core pairs only
+3. **surface_pair_output.txt** - Surface pairs only
+4. **radical_output.txt** - Unpaired radicals
+
+### Checking Coverage
+
+Calculate the coverage percentage:
+
+```
+Coverage = (Paired Atoms / Total Reactive Atoms) × 100%
+```
+
+**Target Coverage**: 88-95%
+
+<AccordionGroup>
+  <Accordion title="Coverage too low (<80%)">
+    **Solutions:**
+    1. Increase query radius by 2-5 angstroms
+    2. Check reactive atom definitions match PDB
+    3. Verify structure is equilibrated (atoms within bonding distance)
+  </Accordion>
+
+  <Accordion title="Coverage too high (>98%)">
+    This is usually fine, but may indicate:
+    1. Query radius too large (may include unrealistic long-range bonds)
+    2. Check distance distribution in pair output
+  </Accordion>
+
+  <Accordion title="Many unpaired radicals">
+    **Expected**: Some radicals are normal (terminal chains, steric hindrance)
+
+    **Concerning if >15% unpaired**: May indicate parameter tuning needed
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Visualization
+
+### PyMOL Visualization
+
+<Steps>
+  <Step title="Load Structure">
+    ```bash
+    pymol my_system.pdb
+    ```
+  </Step>
+
+  <Step title="Select Predicted Pairs">
+    Copy the first line from `pair_output.txt` (PyMOL selection string):
+    ```python
+    select predicted_pairs, id 59+1054+4602+...
+    show sticks, predicted_pairs
+    color red, predicted_pairs
+    ```
+  </Step>
+
+  <Step title="Visualize Radicals">
+    Create a selection from `radical_output.txt`:
+    ```python
+    select radicals, id 4502+4642+4704+...
+    show spheres, radicals
+    color yellow, radicals
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: Reactive atoms not found in PDB">
+    **Cause**: Atom/residue names in reactive file don't match PDB
+
+    **Solution**:
+    1. Open PDB in text editor
+    2. Find example atom, note exact spelling (columns 13-16, 18-20)
+    3. Update reactive file to match exactly
+  </Accordion>
+
+  <Accordion title="Prediction runs but produces zero pairs">
+    **Possible causes**:
+    1. Query radius too small - atoms not within search distance
+    2. Chemical constraints preventing all pairs (same-chain filtering)
+    3. Reactive atoms already bonded in input structure
+
+    **Debug**: Increase query radius to 20 Å temporarily to test if distance is the issue
+  </Accordion>
+
+  <Accordion title="Extremely long runtime (>1 minute for <1000 atoms)">
+    **Cause**: Query radius likely too large
+
+    **Solution**: Reduce query radius to 10-15 angstroms
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Parameter Tuning Strategy
+
+<Steps>
+  <Step title="Start Conservative">
+    Begin with:
+    - Core QR: 10 Å
+    - Surface QR: 15 Å
+    - Both W: 0.03
+  </Step>
+
+  <Step title="Assess Coverage">
+    Run prediction and calculate coverage percentage
+  </Step>
+
+  <Step title="Adjust if Needed">
+    - Low coverage: Increase query radius by 2 Å
+    - High coverage: Decrease query radius by 2 Å
+    - Clustering observed: Increase isolation weight to 0.05-0.07
+  </Step>
+
+  <Step title="Validate">
+    Visualize in PyMOL to ensure bonds are chemically reasonable
+  </Step>
+</Steps>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Understand the Algorithm" icon="diagram-project" href="/science/algorithm/how-it-works">
+    Learn how LNKD selects pairs using KD-trees and bond potentials
+  </Card>
+
+  <Card title="MINP Workflow" icon="list-check" href="/science/workflow/workflow-overview">
+    Integrate LNKD predictions into MD simulations
+  </Card>
+
+  <Card title="API Reference" icon="code" href="/developer/api/api-predict-bonds">
+    Use LNKD programmatically in Python
+  </Card>
+
+  <Card title="Extend LNKD" icon="wrench" href="/developer/extending/extending-reactions">
+    Add support for custom reaction types
+  </Card>
+</CardGroup>

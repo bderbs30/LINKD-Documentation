@@ -1,0 +1,704 @@
+---
+title: "Extending: Workflow Integration"
+description: "Integrate LNKD into automated MD pipelines"
+---
+
+## Overview
+
+LNKD is designed to fit seamlessly into molecular dynamics workflows. This guide covers integration patterns for production environments.
+
+**Common use cases**:
+- Automated MINP construction pipelines
+- Batch processing of multiple systems
+- Integration with GROMACS/AMBER workflows
+- High-throughput screening
+
+---
+
+## Approach 1: Python Script Integration
+
+**Best for**: Single-system workflows with custom parameters
+
+### Complete MINP Pipeline
+
+```python
+#!/usr/bin/env python3
+"""
+Complete MINP construction pipeline.
+
+Automates: Micelle setup → Relaxation → LNKD prediction → Constraint generation
+"""
+
+import subprocess
+import os
+import sys
+from pathlib import Path
+
+class MINPPipeline:
+    """Automated MINP construction workflow."""
+
+    def __init__(self, template_pdb, output_dir, system_name):
+        self.template = template_pdb
+        self.output_dir = Path(output_dir)
+        self.system_name = system_name
+
+        # Create directory structure
+        self.output_dir.mkdir(exist_ok=True)
+        (self.output_dir / 'structures').mkdir(exist_ok=True)
+        (self.output_dir / 'predictions').mkdir(exist_ok=True)
+        (self.output_dir / 'constraints').mkdir(exist_ok=True)
+
+    def run_packmol(self, n_surfactants=60, n_cores=40):
+        """Step 1: Assemble micelle with PACKMOL."""
+        print(f"[1/5] Building micelle: {n_surfactants} surfactants, {n_cores} cores")
+
+        packmol_input = f"""
+tolerance 2.0
+filetype pdb
+output {self.output_dir}/structures/micelle_initial.pdb
+
+structure {self.template}
+  number {n_surfactants}
+  inside sphere 0. 0. 0. 50.
+end structure
+"""
+
+        with open(self.output_dir / 'packmol.inp', 'w') as f:
+            f.write(packmol_input)
+
+        subprocess.run(['packmol < packmol.inp'], shell=True, cwd=self.output_dir, check=True)
+        return self.output_dir / 'structures' / 'micelle_initial.pdb'
+
+    def run_gromacs_relaxation(self, input_pdb):
+        """Step 2: Energy minimization + NVT equilibration."""
+        print("[2/5] Running GROMACS relaxation")
+
+        struct_dir = self.output_dir / 'structures'
+
+        # Generate topology
+        subprocess.run([
+            'gmx', 'pdb2gmx',
+            '-f', str(input_pdb),
+            '-o', str(struct_dir / 'processed.gro'),
+            '-p', str(struct_dir / 'topol.top'),
+            '-ff', 'oplsaa',
+            '-water', 'tip3p'
+        ], check=True)
+
+        # Energy minimization
+        subprocess.run([
+            'gmx', 'grompp',
+            '-f', 'em.mdp',
+            '-c', str(struct_dir / 'processed.gro'),
+            '-p', str(struct_dir / 'topol.top'),
+            '-o', str(struct_dir / 'em.tpr')
+        ], check=True)
+
+        subprocess.run([
+            'gmx', 'mdrun',
+            '-deffnm', str(struct_dir / 'em'),
+            '-v'
+        ], check=True)
+
+        # NVT equilibration (100 ps)
+        subprocess.run([
+            'gmx', 'grompp',
+            '-f', 'nvt.mdp',
+            '-c', str(struct_dir / 'em.gro'),
+            '-p', str(struct_dir / 'topol.top'),
+            '-o', str(struct_dir / 'nvt.tpr')
+        ], check=True)
+
+        subprocess.run([
+            'gmx', 'mdrun',
+            '-deffnm', str(struct_dir / 'nvt'),
+            '-v'
+        ], check=True)
+
+        # Convert final frame to PDB
+        subprocess.run([
+            'gmx', 'trjconv',
+            '-f', str(struct_dir / 'nvt.gro'),
+            '-s', str(struct_dir / 'nvt.tpr'),
+            '-o', str(struct_dir / 'micelle_relaxed.pdb'),
+            '-dump', '0'
+        ], stdin=subprocess.DEVNULL, check=True)
+
+        return struct_dir / 'micelle_relaxed.pdb'
+
+    def run_lnkd_prediction(self, relaxed_pdb):
+        """Step 3: Predict cross-links with LNKD."""
+        print("[3/5] Running LNKD predictions")
+
+        pred_dir = self.output_dir / 'predictions'
+
+        # Core cross-linking
+        subprocess.run([
+            'python3', './pair_prediction/predict_for_single_surfactant.py',
+            str(relaxed_pdb),
+            'core_reactive.txt',
+            '-core_QR', '15',
+            '-core_W', '0.01',
+            '-o', str(pred_dir / 'core_output')
+        ], check=True)
+
+        # Surface cross-linking
+        subprocess.run([
+            'python3', './pair_prediction/predict_for_single_surfactant.py',
+            str(relaxed_pdb),
+            'sur_reactive.txt',
+            '-sur_QR', '15',
+            '-sur_W', '0.03',
+            '-o', str(pred_dir / 'surface_output')
+        ], check=True)
+
+        return {
+            'core_pairs': pred_dir / 'core_output' / 'core_pair_output.txt',
+            'surface_pairs': pred_dir / 'surface_output' / 'surface_pair_output.txt'
+        }
+
+    def generate_plumed_constraints(self, pair_files):
+        """Step 4: Generate PLUMED constraint files."""
+        print("[4/5] Generating PLUMED constraints")
+
+        const_dir = self.output_dir / 'constraints'
+
+        for name, pair_file in pair_files.items():
+            output_file = const_dir / f'plumed_{name}.dat'
+
+            with open(pair_file) as f:
+                pairs = [line.strip().split() for line in f]
+
+            with open(output_file, 'w') as out:
+                out.write(f"# PLUMED constraints from LNKD predictions ({name})\n\n")
+
+                # Distance definitions
+                for i, (atom1, atom2) in enumerate(pairs, 1):
+                    out.write(f"DISTANCE ATOMS={atom1},{atom2} LABEL=d{i}\n")
+
+                out.write("\n")
+
+                # Upper wall restraints
+                kappa = 1000.0 if 'core' in name else 800.0
+                for i in range(1, len(pairs) + 1):
+                    out.write(f"UPPER_WALLS ARG=d{i} AT=0.35 KAPPA={kappa} EXP=2 LABEL=uw{i}\n")
+
+                out.write("\n")
+
+                # Print statement
+                distance_labels = ','.join([f"d{i}" for i in range(1, len(pairs) + 1)])
+                out.write(f"PRINT ARG={distance_labels} FILE={name}_distances.dat STRIDE=100\n")
+
+        return const_dir
+
+    def run_crosslinking_md(self, relaxed_pdb, constraint_dir):
+        """Step 5: Run cross-linking MD with PLUMED."""
+        print("[5/5] Running cross-linking MD")
+
+        struct_dir = self.output_dir / 'structures'
+
+        # Prepare cross-linking MD
+        subprocess.run([
+            'gmx', 'grompp',
+            '-f', 'crosslink.mdp',
+            '-c', str(relaxed_pdb),
+            '-p', str(struct_dir / 'topol.top'),
+            '-o', str(struct_dir / 'crosslink.tpr')
+        ], check=True)
+
+        # Run with PLUMED (core constraints)
+        subprocess.run([
+            'gmx', 'mdrun',
+            '-deffnm', str(struct_dir / 'crosslink'),
+            '-plumed', str(constraint_dir / 'plumed_core_pairs.dat'),
+            '-v'
+        ], check=True)
+
+        print(f"\nPipeline complete! Results in {self.output_dir}")
+
+    def run(self):
+        """Execute complete pipeline."""
+        try:
+            # Step 1: Build micelle
+            initial_pdb = self.run_packmol()
+
+            # Step 2: Relax structure
+            relaxed_pdb = self.run_gromacs_relaxation(initial_pdb)
+
+            # Step 3: Predict cross-links
+            pair_files = self.run_lnkd_prediction(relaxed_pdb)
+
+            # Step 4: Generate constraints
+            constraint_dir = self.generate_plumed_constraints(pair_files)
+
+            # Step 5: Cross-linking MD
+            self.run_crosslinking_md(relaxed_pdb, constraint_dir)
+
+            return True
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error in pipeline: {e}")
+            return False
+
+
+# Usage
+if __name__ == '__main__':
+    pipeline = MINPPipeline(
+        template_pdb='templates/surfactant.pdb',
+        output_dir='./minp_glycosidase',
+        system_name='glycosidase_minp'
+    )
+
+    success = pipeline.run()
+    sys.exit(0 if success else 1)
+```
+
+---
+
+## Approach 2: Batch Processing
+
+**Best for**: High-throughput screening, parameter optimization
+
+### Parallel LNKD Runs
+
+```python
+#!/usr/bin/env python3
+"""
+Batch process multiple LNKD predictions in parallel.
+"""
+
+import subprocess
+from multiprocessing import Pool
+from pathlib import Path
+import json
+
+def run_lnkd_single(config):
+    """
+    Run single LNKD prediction.
+
+    Args:
+        config (dict): {
+            'pdb': 'path/to/structure.pdb',
+            'reactive': 'core_reactive.txt',
+            'query_radius': 15,
+            'isolation_weight': 0.03,
+            'output_dir': 'output/system1/'
+        }
+    """
+    try:
+        cmd = [
+            'python3', './pair_prediction/predict_for_single_surfactant.py',
+            config['pdb'],
+            config['reactive'],
+            '-core_QR', str(config['query_radius']),
+            '-core_W', str(config['isolation_weight']),
+            '-o', config['output_dir']
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+        # Parse output for statistics
+        output_file = Path(config['output_dir']) / 'core_pair_output.txt'
+        with open(output_file) as f:
+            n_pairs = sum(1 for _ in f)
+
+        return {
+            'config': config,
+            'success': True,
+            'n_pairs': n_pairs
+        }
+
+    except subprocess.CalledProcessError as e:
+        return {
+            'config': config,
+            'success': False,
+            'error': str(e)
+        }
+
+
+def batch_predict(configs, n_workers=4):
+    """
+    Run LNKD predictions in parallel.
+
+    Args:
+        configs (list): List of config dicts
+        n_workers (int): Parallel processes
+
+    Returns:
+        list: Results for each config
+    """
+    with Pool(processes=n_workers) as pool:
+        results = pool.map(run_lnkd_single, configs)
+
+    return results
+
+
+# Parameter sweep example
+if __name__ == '__main__':
+    # Generate configs for parameter sweep
+    configs = []
+
+    for qr in [12, 15, 18]:
+        for w in [0.01, 0.03, 0.05]:
+            configs.append({
+                'pdb': 'micelle_relaxed.pdb',
+                'reactive': 'core_reactive.txt',
+                'query_radius': qr,
+                'isolation_weight': w,
+                'output_dir': f'sweep_output/QR{qr}_W{w:.2f}'
+            })
+
+    # Run batch predictions
+    print(f"Running {len(configs)} LNKD predictions on 4 cores...")
+    results = batch_predict(configs, n_workers=4)
+
+    # Analyze results
+    successful = [r for r in results if r['success']]
+    print(f"\nCompleted {len(successful)}/{len(configs)} predictions")
+
+    # Find optimal parameters
+    best = max(successful, key=lambda x: x['n_pairs'])
+    print(f"Best configuration:")
+    print(f"  QR: {best['config']['query_radius']}")
+    print(f"  W: {best['config']['isolation_weight']}")
+    print(f"  Pairs: {best['n_pairs']}")
+
+    # Save results
+    with open('sweep_results.json', 'w') as f:
+        json.dump(results, f, indent=2)
+```
+
+---
+
+## Approach 3: Shell Script Wrapper
+
+**Best for**: Simple automation, cluster job submission
+
+### Complete Bash Pipeline
+
+```bash
+#!/bin/bash
+# minp_pipeline.sh - Complete MINP construction pipeline
+
+set -e  # Exit on error
+
+# Configuration
+TEMPLATE_PDB="templates/surfactant.pdb"
+SYSTEM_NAME="glycosidase_minp"
+OUTPUT_DIR="./minp_output"
+N_SURFACTANTS=60
+N_CORES=40
+
+# Create directory structure
+mkdir -p ${OUTPUT_DIR}/{structures,predictions,constraints,logs}
+
+echo "[1/5] Building micelle with PACKMOL..."
+cat > ${OUTPUT_DIR}/packmol.inp <<EOF
+tolerance 2.0
+filetype pdb
+output ${OUTPUT_DIR}/structures/micelle_initial.pdb
+
+structure ${TEMPLATE_PDB}
+  number ${N_SURFACTANTS}
+  inside sphere 0. 0. 0. 50.
+end structure
+EOF
+
+packmol < ${OUTPUT_DIR}/packmol.inp > ${OUTPUT_DIR}/logs/packmol.log
+
+echo "[2/5] Running GROMACS relaxation..."
+cd ${OUTPUT_DIR}/structures
+
+# Energy minimization
+gmx pdb2gmx -f micelle_initial.pdb -o processed.gro -p topol.top -ff oplsaa -water tip3p
+gmx grompp -f ../../em.mdp -c processed.gro -p topol.top -o em.tpr
+gmx mdrun -deffnm em -v > ../logs/em.log
+
+# NVT equilibration
+gmx grompp -f ../../nvt.mdp -c em.gro -p topol.top -o nvt.tpr
+gmx mdrun -deffnm nvt -v > ../logs/nvt.log
+
+# Extract final frame
+echo 0 | gmx trjconv -f nvt.gro -s nvt.tpr -o micelle_relaxed.pdb -dump 0
+
+cd ../..
+
+echo "[3/5] Running LNKD predictions..."
+# Core cross-linking
+python3 ./pair_prediction/predict_for_single_surfactant.py \
+    ${OUTPUT_DIR}/structures/micelle_relaxed.pdb \
+    core_reactive.txt \
+    -core_QR 15 -core_W 0.01 \
+    -o ${OUTPUT_DIR}/predictions/core_output \
+    > ${OUTPUT_DIR}/logs/lnkd_core.log
+
+# Surface cross-linking
+python3 ./pair_prediction/predict_for_single_surfactant.py \
+    ${OUTPUT_DIR}/structures/micelle_relaxed.pdb \
+    sur_reactive.txt \
+    -sur_QR 15 -sur_W 0.03 \
+    -o ${OUTPUT_DIR}/predictions/surface_output \
+    > ${OUTPUT_DIR}/logs/lnkd_surface.log
+
+echo "[4/5] Generating PLUMED constraints..."
+python3 - <<PYTHON
+from pathlib import Path
+
+def generate_plumed(pair_file, output_file, kappa=1000.0):
+    with open(pair_file) as f:
+        pairs = [line.strip().split() for line in f]
+
+    with open(output_file, 'w') as out:
+        out.write("# PLUMED constraints from LNKD\n\n")
+
+        for i, (atom1, atom2) in enumerate(pairs, 1):
+            out.write(f"DISTANCE ATOMS={atom1},{atom2} LABEL=d{i}\n")
+
+        out.write("\n")
+
+        for i in range(1, len(pairs) + 1):
+            out.write(f"UPPER_WALLS ARG=d{i} AT=0.35 KAPPA={kappa} EXP=2\n")
+
+        distance_labels = ','.join([f"d{i}" for i in range(1, len(pairs) + 1)])
+        out.write(f"\nPRINT ARG={distance_labels} FILE=distances.dat STRIDE=100\n")
+
+# Generate core and surface constraints
+generate_plumed(
+    '${OUTPUT_DIR}/predictions/core_output/core_pair_output.txt',
+    '${OUTPUT_DIR}/constraints/plumed_core.dat',
+    kappa=1000.0
+)
+
+generate_plumed(
+    '${OUTPUT_DIR}/predictions/surface_output/surface_pair_output.txt',
+    '${OUTPUT_DIR}/constraints/plumed_surface.dat',
+    kappa=800.0
+)
+PYTHON
+
+echo "[5/5] Running cross-linking MD..."
+cd ${OUTPUT_DIR}/structures
+
+gmx grompp -f ../../crosslink.mdp -c micelle_relaxed.pdb -p topol.top -o crosslink.tpr
+gmx mdrun -deffnm crosslink -plumed ../constraints/plumed_core.dat -v > ../logs/crosslink.log
+
+cd ../..
+
+echo "Pipeline complete! Results in ${OUTPUT_DIR}"
+```
+
+**Usage**:
+```bash
+chmod +x minp_pipeline.sh
+./minp_pipeline.sh
+```
+
+---
+
+## Cluster Job Submission
+
+### SLURM Integration
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=minp_pipeline
+#SBATCH --output=minp_%j.out
+#SBATCH --error=minp_%j.err
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --time=24:00:00
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+
+module load gromacs/2023.1
+module load python/3.10
+module load packmol
+
+# Run pipeline
+./minp_pipeline.sh
+
+# Post-processing
+python3 analyze_results.py ${OUTPUT_DIR}
+```
+
+---
+
+## Error Handling
+
+### Robust Pipeline with Checkpoints
+
+```python
+import subprocess
+import pickle
+from pathlib import Path
+
+class CheckpointedPipeline(MINPPipeline):
+    """Pipeline with checkpoint/restart capability."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.checkpoint_file = self.output_dir / 'pipeline_checkpoint.pkl'
+        self.state = self.load_checkpoint()
+
+    def load_checkpoint(self):
+        """Load pipeline state from checkpoint."""
+        if self.checkpoint_file.exists():
+            with open(self.checkpoint_file, 'rb') as f:
+                return pickle.load(f)
+        return {'step': 0, 'data': {}}
+
+    def save_checkpoint(self, step, data):
+        """Save pipeline progress."""
+        self.state = {'step': step, 'data': data}
+        with open(self.checkpoint_file, 'wb') as f:
+            pickle.dump(self.state, f)
+
+    def run(self):
+        """Execute pipeline with checkpoints."""
+        steps = [
+            ('packmol', self.run_packmol),
+            ('relax', self.run_gromacs_relaxation),
+            ('lnkd', self.run_lnkd_prediction),
+            ('constraints', self.generate_plumed_constraints),
+            ('crosslink_md', self.run_crosslinking_md)
+        ]
+
+        start_step = self.state['step']
+        print(f"Resuming from step {start_step}")
+
+        try:
+            for i, (name, func) in enumerate(steps):
+                if i < start_step:
+                    continue  # Skip completed steps
+
+                print(f"\n[{i+1}/{len(steps)}] Running {name}...")
+
+                # Get input from previous step
+                if i == 0:
+                    result = func()
+                else:
+                    prev_result = self.state['data'].get(steps[i-1][0])
+                    result = func(prev_result)
+
+                # Save checkpoint
+                self.state['data'][name] = result
+                self.save_checkpoint(i + 1, self.state['data'])
+
+            print("\nPipeline completed successfully!")
+            return True
+
+        except Exception as e:
+            print(f"\nError at step {i}: {e}")
+            print(f"Checkpoint saved. Restart to continue from step {i}")
+            return False
+```
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Validate Inputs Before Running">
+    **Check** that all required files exist before pipeline execution.
+
+    ```python
+    def validate_inputs(self):
+        """Verify all input files are present."""
+        required = [
+            self.template,
+            'core_reactive.txt',
+            'sur_reactive.txt',
+            'em.mdp',
+            'nvt.mdp',
+            'crosslink.mdp'
+        ]
+
+        missing = [f for f in required if not Path(f).exists()]
+
+        if missing:
+            raise FileNotFoundError(f"Missing files: {missing}")
+    ```
+  </Accordion>
+
+  <Accordion title="2. Log All Pipeline Steps">
+    **Capture** stdout/stderr for debugging.
+
+    ```python
+    def run_with_logging(cmd, log_file):
+        """Run command with output logging."""
+        with open(log_file, 'w') as log:
+            result = subprocess.run(
+                cmd,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=True
+            )
+        return result
+    ```
+  </Accordion>
+
+  <Accordion title="3. Monitor Resource Usage">
+    **Track** memory and disk usage for long pipelines.
+
+    ```python
+    import psutil
+
+    def check_resources():
+        """Ensure sufficient resources."""
+        mem = psutil.virtual_memory()
+        disk = psutil.disk_usage('.')
+
+        if mem.percent > 90:
+            raise RuntimeError("Low memory!")
+
+        if disk.percent > 95:
+            raise RuntimeError("Low disk space!")
+    ```
+  </Accordion>
+
+  <Accordion title="4. Use Configuration Files">
+    **Store** pipeline parameters in JSON/YAML.
+
+    ```yaml
+    # config.yaml
+    system:
+      name: glycosidase_minp
+      n_surfactants: 60
+      n_cores: 40
+
+    lnkd:
+      core_query_radius: 15
+      core_isolation_weight: 0.01
+      surface_query_radius: 15
+      surface_isolation_weight: 0.03
+
+    md:
+      em_steps: 5000
+      nvt_time: 100  # ps
+      crosslink_time: 1000  # ps
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Workflow Overview" icon="diagram-project" href="/science/workflow/workflow-overview">
+    Three-phase MINP modeling workflow
+  </Card>
+
+  <Card title="Phase 2: Cross-linking" icon="2" href="/science/workflow/phase-2-crosslinking">
+    LNKD in the complete workflow
+  </Card>
+
+  <Card title="Extending Constraints" icon="link" href="/developer/extending/extending-constraints">
+    Custom MD constraint generation
+  </Card>
+
+  <Card title="Research Paper" icon="file-lines" href="/developer/references/references-paper">
+    Original LNKD publication
+  </Card>
+</CardGroup>

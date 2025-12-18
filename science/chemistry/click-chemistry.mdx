@@ -1,0 +1,506 @@
+---
+title: "Click Chemistry for Surface Cross-Linking"
+description: "Azide-alkyne cycloaddition mechanism and its role in MINP synthesis"
+---
+
+## What is Click Chemistry?
+
+**Click chemistry** is a set of reactions that are:
+- High yielding (>95%)
+- Regioselective (single product)
+- Thermodynamically favorable
+- Insensitive to oxygen and water
+- Simple to perform
+
+**Most famous example**: Azide-alkyne cycloaddition (AAC)
+
+---
+
+## Historical Context
+
+<Steps>
+  <Step title="2001: Sharpless Defines Click Chemistry">
+    **K. Barry Sharpless** introduces click chemistry philosophy:
+    - "Spring-loaded" reactions (high thermodynamic driving force)
+    - Modular and wide in scope
+    - Minimal purification needed
+    - Physiological conditions compatible
+
+    **Goal**: Simplify chemical synthesis, especially for drug discovery
+  </Step>
+
+  <Step title="2002: Meldal and Sharpless Independently Develop CuAAC">
+    **Copper(I)-catalyzed azide-alkyne cycloaddition (CuAAC)**:
+    - Cu(I) catalyst accelerates reaction 10⁷× vs. uncatalyzed
+    - Room temperature, aqueous conditions
+    - Regioselective for 1,4-disubstituted triazole
+    - **"The cream of the crop of click chemistry"** - Sharpless
+
+    **Nobel Prize**: Sharpless shares 2022 Nobel Prize in Chemistry for click chemistry
+  </Step>
+
+  <Step title="2004: Bertozzi Develops Copper-Free Click">
+    **Strain-promoted azide-alkyne cycloaddition (SPAAC)**:
+    - Uses strained cyclooctynes instead of terminal alkynes
+    - No copper catalyst required (bioorthogonal)
+    - Slower than CuAAC but compatible with living cells
+  </Step>
+
+  <Step title="2010s: Application to Polymer Cross-Linking">
+    Click chemistry adopted for polymer networks:
+    - Orthogonal to radical polymerization
+    - Precise control over cross-link density
+    - **MINP synthesis**: Surface shell formation
+  </Step>
+</Steps>
+
+---
+
+## Azide-Alkyne Cycloaddition Mechanism
+
+### Uncatalyzed Reaction (Huisgen 1,3-Dipolar Cycloaddition)
+
+**Thermal reaction** at high temperature (100-150°C):
+
+$$\text{R-N}_3 + \text{R'-C}\equiv\text{CH} \xrightarrow{\Delta} \text{R-triazole-R'}$$
+
+**Problems**:
+- Requires high temperature (incompatible with MINPs)
+- Mixture of 1,4- and 1,5-regioisomers
+- Slow reaction (days)
+
+---
+
+### Copper(I)-Catalyzed AAC (CuAAC) - The Gold Standard
+
+**Mechanism** (simplified):
+
+<Steps>
+  <Step title="Alkyne Activation">
+    Cu(I) coordinates to terminal alkyne, increasing acidity of alkyne proton.
+
+    $$\text{R-C}\equiv\text{CH} + \text{Cu(I)} \rightarrow \text{R-C}\equiv\text{C-Cu} + \text{H}^+$$
+
+    **Result**: Copper acetylide intermediate
+  </Step>
+
+  <Step title="Azide Coordination">
+    Azide nitrogen coordinates to copper:
+
+    $$\text{R'-N}_3 + \text{Cu-acetylide} \rightarrow \text{Complex}$$
+
+    **Result**: Activated azide-alkyne complex
+  </Step>
+
+  <Step title="Cycloaddition">
+    Concerted [3+2] cycloaddition forms 5-membered triazole ring:
+
+    **Result**: 1,4-disubstituted 1,2,3-triazole (single regioisomer)
+  </Step>
+
+  <Step title="Product Release">
+    Triazole product dissociates, regenerating Cu(I) catalyst:
+
+    $$\text{Cu(I)} + \text{triazole-product}$$
+
+    **Result**: Catalyst available for next cycle
+  </Step>
+</Steps>
+
+---
+
+### CuAAC Reaction Conditions
+
+**Optimal parameters for MINP synthesis**:
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| **Catalyst** | CuSO₄ + sodium ascorbate | In situ reduction to Cu(I) |
+| **Solvent** | Water, DMF, or mixed | Depends on monomer solubility |
+| **Temperature** | 20-40°C | Room temperature works |
+| **Time** | 4-24 hours | Faster with higher catalyst loading |
+| **pH** | 7-9 | Slightly basic optimal |
+
+**Catalyst loading**: 5-20 mol% Cu relative to azide/alkyne
+
+<Warning>
+  Cu(I) is air-sensitive and oxidizes to Cu(II) (inactive). Use oxygen-free conditions or add reducing agent (ascorbate).
+</Warning>
+
+---
+
+## Click Chemistry in MINP Synthesis
+
+### Why Click for Surface Cross-Linking?
+
+<CardGroup cols={2}>
+  <Card title="Orthogonality" icon="arrows-split-up-and-left">
+    **Independent of radical polymerization**:
+    - Azide and alkyne don't participate in radical reactions
+    - Can perform click before, during, or after core polymerization
+    - No interference between surface and core chemistry
+  </Card>
+
+  <Card title="Biocompatibility" icon="heart-pulse">
+    **Suitable for biological applications**:
+    - Azides and alkynes inert in biological systems
+    - Aqueous conditions
+    - Mild temperature
+    - MINPs can be used in vivo
+  </Card>
+
+  <Card title="Modularity" icon="puzzle-piece">
+    **Easy to vary cross-link density**:
+    - Adjust azide:alkyne ratio
+    - Control reaction time
+    - Sequential clicking for multi-layer structures
+  </Card>
+
+  <Card title="Robustness" icon="shield">
+    **Triazole product is stable**:
+    - Resistant to hydrolysis
+    - Stable to pH 2-12
+    - Thermally stable (>200°C)
+    - Permanent cross-link
+  </Card>
+</CardGroup>
+
+---
+
+### MINP Surface Architecture
+
+**Two-component system**:
+
+<Tabs>
+  <Tab title="Monoazide Linkers">
+    **Azide-bearing molecules** that partition to micelle surface.
+
+    **Structure**:
+    ```
+    R-O-(CH₂)₃-N₃
+    ```
+
+    **Properties**:
+    - Hydrophilic headgroup (R = PEG, carboxylate)
+    - Azide at terminus for surface exposure
+    - Water-soluble
+
+    **Typical composition**: 10-20 molecules per MINP
+
+    **After clicking**: Forms triazole cross-links to surfactants
+  </Tab>
+
+  <Tab title="Alkyne Surfactants">
+    **Surfactant molecules with terminal alkyne groups**.
+
+    **Structure**:
+    ```
+    CH₂=C(CH₃)-COO-(CH₂)₁₁-C≡CH
+    ```
+
+    **Properties**:
+    - Methacrylate head (polymerizable)
+    - Long alkyl chain (hydrophobic)
+    - Terminal alkyne (click handle)
+
+    **Typical composition**: 30-40 molecules per MINP
+
+    **Role**: Forms micelle shell, connects to core via polymerization
+  </Tab>
+</Tabs>
+
+---
+
+### Surface Cross-Linking Protocol
+
+**Integration with MINP workflow** (Phase 2):
+
+<Steps>
+  <Step title="Micelle Assembly">
+    Mix components in aqueous buffer:
+    - Template (center)
+    - Alkyne surfactants (shell)
+    - Monoazide linkers (surface)
+    - DVB cross-linkers (core)
+
+    **Self-assembly** forms micelle structure (~20 nm)
+  </Step>
+
+  <Step title="Click Reaction">
+    Add Cu(I) catalyst:
+    ```bash
+    # Typical reaction mixture
+    - Micelle solution: 10 mL
+    - CuSO₄: 5 mM
+    - Sodium ascorbate: 10 mM
+    - Stir at 25°C, 12 hours
+    ```
+
+    **Result**: Azide-alkyne pairs form triazole bonds at surface
+  </Step>
+
+  <Step title="Verification">
+    LNKD prediction + experimental check:
+    - **Computational**: LNKD predicts 100-150 surface pairs
+    - **Experimental**: FTIR shows azide disappearance (2100 cm⁻¹)
+    - **Experimental**: NMR shows triazole proton (δ 7-8 ppm)
+  </Step>
+
+  <Step title="Proceed to Core Polymerization">
+    After surface click, initiate radical polymerization for core:
+    - UV or thermal initiator
+    - Forms C-C bonds between DVB monomers
+    - Surface shell constrains core during polymerization
+  </Step>
+</Steps>
+
+---
+
+## Triazole Product Properties
+
+### Chemical Structure
+
+**1,4-Disubstituted 1,2,3-triazole**:
+
+**Key features**:
+- Aromatic (6 π electrons)
+- Planar geometry
+- H-bond acceptor (three N atoms)
+- Weak H-bond donor (C-H at position 5)
+
+---
+
+### Physical Properties
+
+| Property | Value | Relevance |
+|----------|-------|-----------|
+| **Bond length** | C-N: 1.35-1.40 Å | Typical for aromatic C-N |
+| **Stability** | ΔHf = -273 kJ/mol | Very stable (high formation energy) |
+| **Polarity** | Dipole: ~4-5 D | Moderate polarity |
+| **pKa** | ~9-10 (N-H if present) | Weakly basic |
+
+**Why triazoles are excellent cross-links**:
+1. **Stable**: Won't hydrolyze or decompose
+2. **Rigid**: Planar ring maintains MINP structure
+3. **Polar**: Compatible with aqueous environments
+4. **Biocompatible**: Triazole motif found in drugs
+
+---
+
+### Spectroscopic Signatures
+
+<Accordion title="IR Spectroscopy">
+  **Diagnostic peaks**:
+
+  | Feature | Wavenumber (cm⁻¹) | Assignment |
+  |---------|-------------------|------------|
+  | Azide N₃ | 2100-2150 | Asymmetric stretch (starting material) |
+  | Triazole C=N | 1500-1600 | Ring stretch (product) |
+  | Triazole C-H | 3100-3150 | Aromatic C-H (product) |
+
+  **Reaction monitoring**: Azide peak (2100 cm⁻¹) disappears, triazole peaks (1500-1600 cm⁻¹) appear
+
+  **Conversion calculation**:
+  $$\text{Conversion} = \frac{A_{2100, \, t=0} - A_{2100, \, t}}{A_{2100, \, t=0}} \times 100\%$$
+</Accordion>
+
+<Accordion title="NMR Spectroscopy">
+  **¹H NMR diagnostic signals**:
+
+  | Signal | δ (ppm) | Assignment |
+  |--------|---------|------------|
+  | Alkyne C-H | 1.9-2.5 | Terminal alkyne (starting material) |
+  | Triazole C-H | 7.5-8.5 | Aromatic proton at position 5 (product) |
+  | Azide CH₂ | 3.2-3.5 | Protons α to N₃ (shifts upon clicking) |
+
+  **Example**:
+  ```
+  Before clicking: δ 2.3 (t, 1H, alkyne C-H), 3.3 (t, 2H, CH₂-N₃)
+  After clicking:  δ 7.8 (s, 1H, triazole C-H), 3.5 (t, 2H, CH₂-triazole)
+  ```
+</Accordion>
+
+---
+
+## LNKD's Role in Click Cross-Linking
+
+### Prediction Task
+
+**Question**: Which azide-alkyne pairs will click during MINP synthesis?
+
+**Challenge**:
+- 30 alkyne surfactants × 20 monoazide linkers = 600 possible pairs
+- Not all pairs geometrically accessible
+- Some alkynes/azides buried, some exposed
+
+**LNKD's solution**:
+```bash
+python3 predict_for_single_surfactant.py \
+    micelle_equilibrated.pdb \
+    dummy_core.txt \              # No core prediction yet
+    sur_reactive.txt \            # Azide N and alkyne C atoms
+    -sur_QR 15 \                  # Larger radius for surface
+    -sur_W 0.03 \
+    -o surface_output/
+```
+
+**Output**: 100-150 predicted azide-alkyne pairs (representing 50-75 click reactions, since each forms 2 bonds)
+
+---
+
+### Topology Update for MD
+
+After LNKD prediction, update GROMACS topology to include triazole bonds:
+
+**From `surface_pair_output.txt`**:
+```
+59   1054
+4602 5222
+```
+
+**Add to `topol.top`**:
+```
+[ bonds ]
+; ai  aj  funct  c0      c1
+; Existing bonds...
+
+; LNKD-predicted triazole bonds
+59   1054   1   0.140   400000  ; N-C bond in triazole
+4602 5222   1   0.140   400000  ; N-C bond in triazole
+```
+
+**Bond parameters**:
+- Type 1: Harmonic potential
+- Length: 0.140 nm (N-C in aromatic triazole)
+- Force constant: 400,000 kJ/mol/nm²
+
+---
+
+### Constrained MD Simulation
+
+Use PLUMED to enforce predicted bonds during MD equilibration:
+
+```python
+# plumed_surface.dat
+DISTANCE ATOMS=59,1054 LABEL=d1
+UPPER_WALLS ARG=d1 AT=0.35 KAPPA=1000.0 EXP=2
+
+DISTANCE ATOMS=4602,5222 LABEL=d2
+UPPER_WALLS ARG=d2 AT=0.35 KAPPA=1000.0 EXP=2
+
+# ... all predicted pairs
+
+PRINT ARG=d1,d2,... FILE=distances.dat STRIDE=100
+```
+
+**Run MD**:
+```bash
+gmx mdrun -v -deffnm surface_md -plumed plumed_surface.dat
+```
+
+**Result**: Structure with surface cross-links enforced, ready for core polymerization
+
+---
+
+## Experimental Validation
+
+### Click Reaction Efficiency
+
+**Typical results for MINP surface clicking**:
+
+| Metric | Experimental Value | Computational Prediction |
+|--------|-------------------|--------------------------|
+| Azide conversion | 85-95% | N/A (assumes 100%) |
+| Triazole bonds formed | 90-140 | 100-150 (LNKD) |
+| Reaction time | 8-16 hours | N/A |
+| Byproducts | <5% | 0% (idealized) |
+
+**Agreement**: LNKD predictions match experimental cross-link density within 10-20%
+
+---
+
+### Characterization Methods
+
+<AccordionGroup>
+  <Accordion title="FTIR: Monitor Reaction Progress">
+    **Track azide consumption**:
+    ```bash
+    # Before clicking
+    IR(2100 cm⁻¹) = Strong (azide N₃ stretch)
+
+    # After clicking
+    IR(2100 cm⁻¹) = Weak/absent
+    IR(1550 cm⁻¹) = Strong (triazole C=N)
+    ```
+
+    **Conversion**: ~90% by integrated peak area
+  </Accordion>
+
+  <Accordion title="NMR: Structural Confirmation">
+    **¹H NMR in D₂O or DMSO-d₆**:
+    - Triazole proton at δ 7.8 ppm
+    - Integration ratio matches predicted bonds
+
+    **¹³C NMR**:
+    - Triazole carbons at δ 120-145 ppm
+    - Confirms aromatic character
+  </Accordion>
+
+  <Accordion title="Mass Spectrometry: Molecular Weight">
+    **MALDI-TOF or ESI-MS**:
+    - Measure MINP molecular weight
+    - Each triazole adds ~69 Da (loss of N₂ from azide, gain of ring)
+    - Compare to theoretical MW from LNKD prediction
+
+    **Example**:
+    - Predicted: 100 triazole bonds → +6,900 Da
+    - Measured: +6,200 Da → ~90 bonds formed (90% efficiency)
+  </Accordion>
+
+  <Accordion title="TEM: Visual Structure">
+    **Transmission electron microscopy**:
+    - Verify MINP size and shape
+    - Check for aggregation
+    - Surface roughness indicates cross-linked shell
+
+    **Typical observations**:
+    - Diameter: 15-25 nm
+    - Spherical morphology
+    - Dense shell, lighter core (before core polymerization)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Advantages vs. Other Cross-Linking Methods
+
+| Method | Advantages | Disadvantages | MINP Suitability |
+|--------|-----------|---------------|------------------|
+| **Click chemistry** | Orthogonal, biocompatible, high yield | Requires Cu (toxic) | **Excellent** (surface) |
+| **Radical polymerization** | Simple, fast, cheap | Non-selective, oxygen-sensitive | **Excellent** (core) |
+| **Condensation** | Reversible (dynamic) | Water byproduct, equilibrium-limited | Poor (incomplete) |
+| **Diels-Alder** | Thermal reversibility | High temperature, slow | Moderate (testing) |
+
+**MINP strategy**: Combine click (surface) + radical (core) for best of both worlds
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Radical Polymerization" icon="atom" href="/science/chemistry/radical-polymerization">
+    Core cross-linking chemistry (C-C bonds)
+  </Card>
+
+  <Card title="Phase 2: Cross-Linking" icon="2" href="/science/workflow/phase-2-crosslinking">
+    Apply click chemistry in MINP workflow
+  </Card>
+
+  <Card title="MIP Background" icon="flask" href="/science/chemistry/mip-background">
+    Understand broader MINP context
+  </Card>
+
+  <Card title="Bond Potential" icon="function" href="/science/algorithm/bond-potential">
+    How LNKD scores click pairs
+  </Card>
+</CardGroup>

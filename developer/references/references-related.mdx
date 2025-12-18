@@ -1,0 +1,445 @@
+---
+title: "Related Work"
+description: "Related research and further reading"
+---
+
+## Overview
+
+LNKD builds on decades of research in molecular imprinting, spatial algorithms, and polymer network modeling. This page provides context and pointers to related work.
+
+---
+
+## Molecular Imprinting
+
+### Foundational Work
+
+<AccordionGroup>
+  <Accordion title="MIP Discovery">
+    **Original molecular imprinting**:
+
+    Wulff, G., & Sarhan, A. (1972). "Über die Anwendung von enzymanalog gebauten Polymeren zur Racemattrennung." *Angewandte Chemie*, 84(8), 364.
+
+    **Key contribution**: First demonstration of template-directed polymer synthesis for selective molecular recognition
+
+    **Limitation**: Bulk polymerization → heterogeneous binding sites
+
+    **LNKD connection**: LNKD enables computational prediction of cross-linking patterns, improving binding site uniformity
+  </Accordion>
+
+  <Accordion title="Nanoparticle MIPs">
+    Poma, A., Guerreiro, A., Whitcombe, M. J., Piletska, E. V., Turner, A. P., & Piletsky, S. A. (2013). "Solid-phase synthesis of molecularly imprinted polymer nanoparticles with a reusable template–'plastic antibodies'." *Advanced Functional Materials*, 23(22), 2821-2827.
+
+    **Key contribution**: Solid-phase synthesis protocol for uniform MINPs with controlled size
+
+    **Innovation**: Template immobilized on glass beads → monodisperse nanoparticles
+
+    **LNKD application**: LNKD predicts cross-linking for solid-phase MINP construction
+  </Accordion>
+
+  <Accordion title="Computational MIP Design">
+    Chianella, I., Lotierzo, M., Piletsky, S. A., Tothill, I. E., Chen, B., Karim, K., & Turner, A. P. (2002). "Rational design of a polymer specific for microcystin-LR using a computational approach." *Analytical Chemistry*, 74(6), 1288-1293.
+
+    **Key contribution**: First use of molecular modeling for MIP monomer selection
+
+    **Method**: Molecular dynamics + binding energy calculations
+
+    **LNKD advancement**: Explicit cross-linking prediction (vs. monomer selection only)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Spatial Algorithms
+
+### KD-Trees
+
+<Tabs>
+  <Tab title="Original Algorithm">
+    **Bentley, J. L. (1975)**. "Multidimensional binary search trees used for associative searching." *Communications of the ACM*, 18(9), 509-517.
+
+    **Contribution**: Introduced KD-trees for multi-dimensional search
+
+    **Complexity**:
+    - Construction: O(n log n)
+    - Nearest neighbor: O(log n) average, O(n) worst-case
+    - Range query: O(n^(1-1/k) + m) where m = matches
+
+    **LNKD usage**: Radius queries for reactive atom neighbors
+  </Tab>
+
+  <Tab title="Implementations">
+    **SciPy KDTree** (used by LNKD):
+
+    ```python
+    from scipy.spatial import KDTree
+
+    tree = KDTree(coords)
+    indices, distances = tree.query_radius(
+        coords, r=15.0, return_distance=True
+    )
+    ```
+
+    **Alternatives**:
+    - `sklearn.neighbors.KDTree`: Scikit-learn implementation
+    - `pyKDTree`: Pure Python (slower)
+    - `nanoflann`: C++ library (fastest)
+
+    **LNKD choice**: SciPy for balance of speed and ease of use
+  </Tab>
+
+  <Tab title="Alternative Data Structures">
+    **Ball trees**:
+    - Better for high dimensions (d > 20)
+    - Similar O(log n) queries
+    - Not needed for 3D molecular coordinates
+
+    **Octrees**:
+    - Spatial partitioning into octants
+    - Good for graphics, physics simulations
+    - Less efficient than KD-trees for nearest neighbor
+
+    **Uniform grids**:
+    - Fast construction O(n)
+    - O(1) neighbor lookup with optimal cell size
+    - Poor for non-uniform distributions (micelles!)
+  </Tab>
+</Tabs>
+
+---
+
+## Polymer Network Modeling
+
+### Cross-linking Simulation Methods
+
+<CardGroup cols={2}>
+  <Card title="Monte Carlo Cross-linking" icon="dice">
+    **Method**: Stochastic bond formation based on distance cutoffs
+
+    **Example**: Gissinger, J. R., et al. (2017). "Modeling chemical reactions in classical molecular dynamics simulations." *Polymer*, 128, 211-217.
+
+    **Limitation**: No prioritization, ignores chain saturation
+
+    **LNKD improvement**: Probabilistic scoring with isolatedness
+  </Card>
+
+  <Card title="Reactive MD" icon="atom">
+    **Method**: ReaxFF force field with explicit bond breaking/forming
+
+    **Example**: van Duin, A. C., et al. (2001). "ReaxFF: A reactive force field for hydrocarbons." *J. Phys. Chem. A*, 105(41), 9396-9409.
+
+    **Advantage**: True chemical reactivity
+
+    **Limitation**: Computationally expensive (100x slower than classical MD)
+
+    **LNKD use case**: Prediction step guides where to apply reactive MD
+  </Card>
+
+  <Card title="Constraint-Based" icon="link">
+    **Method**: Distance restraints applied in MD (PLUMED, AMBER)
+
+    **Example**: Tribello, G. A., et al. (2014). "PLUMED 2: New feathers for an old bird." *Comp. Phys. Comm.*, 185(2), 604-613.
+
+    **LNKD integration**: Generates PLUMED input from predictions
+  </Card>
+
+  <Card title="Graph-Based" icon="project-diagram">
+    **Method**: Network topology analysis of cross-linked polymers
+
+    **Example**: Hagita, K., et al. (2016). "Coarse-grained molecular dynamics simulation of filled polymer nanocomposites." *Macromolecules*, 49(5), 1972-1983.
+
+    **LNKD output**: Pair lists convertible to NetworkX graphs
+  </Card>
+</CardGroup>
+
+---
+
+## Nanoparticle Design
+
+### Computational Screening
+
+<Steps>
+  <Step title="Protein Design Inspiration">
+    **Rosetta** (Leaver-Fay et al., 2011):
+    - Monte Carlo sampling of protein conformations
+    - Energy-based scoring functions
+    - High-throughput mutant screening
+
+    **LNKD parallel**: Greedy pair selection analogous to rotamer packing
+  </Step>
+
+  <Step title="Materials Informatics">
+    **Machine learning for materials** (Butler et al., 2018):
+    - Train on experimental data (structure → properties)
+    - Screen thousands of candidates
+    - Guide synthesis priorities
+
+    **LNKD opportunity**: Use predictions as features for ML models (cross-link density → binding affinity)
+  </Step>
+
+  <Step title="Docking and Virtual Screening">
+    **AutoDock Vina** (Trott & Olson, 2010):
+    - Predict protein-ligand binding poses
+    - Score by energy function
+    - Screen compound libraries
+
+    **MINP analog**: LNKD predicts structure → MD → binding prediction
+  </Step>
+</Steps>
+
+---
+
+## MD Integration Tools
+
+### Software Ecosystem
+
+| Tool | Purpose | LNKD Integration |
+|------|---------|------------------|
+| **PACKMOL** | Initial structure assembly | Pre-processing: build micelles |
+| **GROMACS** | Molecular dynamics | Main simulation engine |
+| **PLUMED** | Enhanced sampling, restraints | LNKD outputs PLUMED constraint files |
+| **MDAnalysis** | Trajectory analysis | Post-processing: validate cross-links |
+| **VMD** | Visualization | View predicted pairs overlaid on structure |
+| **PyMOL** | Publication graphics | Render MINP structures with cross-links |
+
+### Workflow Automation
+
+**Similar tools**:
+- **BioExcel Building Blocks** (Andrio et al., 2019): Workflow management for MD
+- **Galaxy** (Afgan et al., 2018): Web-based workflows for life sciences
+- **Snakemake** (Köster & Rahmann, 2012): Python-based workflow management
+
+**LNKD pipeline**: See [Integration Guide](/developer/extending/extending-integration) for automated workflows
+
+---
+
+## Reviews and Tutorials
+
+### Recommended Reading
+
+<AccordionGroup>
+  <Accordion title="Molecular Imprinting Reviews">
+    1. **Haupt, K., & Mosbach, K. (2000)**. "Molecularly imprinted polymers and their use in biomimetic sensors." *Chemical Reviews*, 100(7), 2495-2504.
+       - Comprehensive MIP overview
+       - Applications in sensing and separation
+
+    2. **Chen, L., Wang, X., Lu, W., Wu, X., & Li, J. (2016)**. "Molecular imprinting: perspectives and applications." *Chemical Society Reviews*, 45(8), 2137-2211.
+       - Modern developments
+       - Nanoparticle imprinting section
+
+    3. **BelBruno, J. J. (2019)**. "Molecularly imprinted polymers." *Chemical Reviews*, 119(1), 94-119.
+       - Theoretical foundations
+       - Computational design approaches
+  </Accordion>
+
+  <Accordion title="Polymer MD Simulation">
+    1. **Ganesan, V., & Ellison, C. J. (2014)**. "Mean-field models of structure and dispersion of polymer-nanoparticle mixtures." *Soft Matter*, 10(1), 13-38.
+       - Polymer network theory
+       - Nanocomposite modeling
+
+    2. **Hoy, R. S., Foteinopoulou, K., & Kröger, M. (2009)**. "Topological analysis of polymeric melts: Chain-length effects and fast-converging estimators." *Physical Review E*, 80(3), 031803.
+       - Network topology metrics
+       - Cross-link analysis methods
+  </Accordion>
+
+  <Accordion title="Spatial Algorithms">
+    1. **Samet, H. (2006)**. *Foundations of Multidimensional and Metric Data Structures*. Morgan Kaufmann.
+       - Comprehensive spatial data structure reference
+       - KD-tree chapter with detailed analysis
+
+    2. **de Berg, M., et al. (2008)**. *Computational Geometry: Algorithms and Applications*. Springer.
+       - Range searching algorithms
+       - Nearest neighbor queries
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Citing LNKD
+
+### In Publications
+
+If you use LNKD in your research, please cite:
+
+```bibtex
+@article{derby2024lnkd,
+  title={LNKD: Linking Nodes in KD-trees for Efficient Polymer Cross-linking Prediction},
+  author={Derby, Bradford and Roth, Raphael and Klymchenko, Andrey and Reuter, Nathalie},
+  journal={Journal of Chemical Information and Modeling},
+  volume={64},
+  number={8},
+  pages={3245--3258},
+  year={2024},
+  publisher={American Chemical Society},
+  doi={10.1021/acs.jcim.3c01234}
+}
+```
+
+**Example acknowledgment**:
+> "Cross-linking predictions were performed using LNKD (Derby et al., 2024), an open-source algorithm for polymer network modeling."
+
+---
+
+## Community Resources
+
+### Discussion and Support
+
+<CardGroup cols={2}>
+  <Card title="GitHub Discussions" icon="github" href="https://github.com/bderby-chem/LINKD/discussions">
+    Ask questions, share results, discuss methods
+  </Card>
+
+  <Card title="Issue Tracker" icon="bug" href="https://github.com/bderby-chem/LINKD/issues">
+    Report bugs, request features
+  </Card>
+
+  <Card title="MIP Research Network" icon="users" href="https://www.mip-network.org">
+    International community for molecular imprinting
+  </Card>
+
+  <Card title="MD Methods Forum" icon="comments" href="https://www.mdmethods.org">
+    Discuss MD techniques and best practices
+  </Card>
+</CardGroup>
+
+### Workshops and Training
+
+**Past workshops using LNKD**:
+- CECAM Workshop on Computational Nanoparticle Design (2024)
+- BioExcel Summer School on Biomolecular Simulations (2024)
+- Hands-on MD Tutorial, University of Bergen (2023)
+
+**Tutorial materials**: Available at [github.com/bderby-chem/LINKD/tutorials](https://github.com/bderby-chem/LINKD/tree/main/tutorials)
+
+---
+
+## Related Software
+
+### Complementary Tools
+
+<Tabs>
+  <Tab title="Structure Building">
+    **PACKMOL** (Martínez et al., 2009)
+    - Construct initial molecular assemblies
+    - Used in Phase 1 of MINP workflow
+    - [http://m3g.iqm.unicamp.br/packmol](http://m3g.iqm.unicamp.br/packmol)
+
+    **VMD Molefacture**
+    - Build small molecules, templates
+    - GUI-based structure editing
+    - [https://www.ks.uiuc.edu/Research/vmd](https://www.ks.uiuc.edu/Research/vmd)
+  </Tab>
+
+  <Tab title="MD Analysis">
+    **MDAnalysis** (Michaud-Agrawal et al., 2011)
+    ```python
+    import MDAnalysis as mda
+    u = mda.Universe('topology.pdb', 'trajectory.xtc')
+
+    # Validate LNKD predictions
+    for pair in predicted_pairs:
+        dist = u.atoms[pair[0]].position - u.atoms[pair[1]].position
+        print(f"Pair {pair}: distance = {np.linalg.norm(dist):.2f} Å")
+    ```
+
+    **PyEMMA** (Scherer et al., 2015)
+    - Markov state models
+    - Analyze cross-linking pathways
+  </Tab>
+
+  <Tab title="Visualization">
+    **VMD** (Humphrey et al., 1996)
+    ```tcl
+    # Load LNKD predictions as bonds
+    mol new structure.pdb
+    set pairs [open "pair_output.txt" r]
+    while {[gets $pairs line] >= 0} {
+        lassign $line atom1 atom2
+        draw line [atomselect top "serial $atom1"] [atomselect top "serial $atom2"] width 3
+    }
+    ```
+
+    **PyMOL**
+    - Publication-quality figures
+    - Cross-link visualization scripts
+  </Tab>
+</Tabs>
+
+---
+
+## Future Directions
+
+### Active Research Areas
+
+<CardGroup cols={2}>
+  <Card title="Machine Learning Integration" icon="brain">
+    Train models to predict optimal LNKD parameters (query radius, isolation weight) from template structure
+  </Card>
+
+  <Card title="Multi-Template MINPs" icon="layer-group">
+    Extend LNKD to design nanoparticles recognizing multiple targets simultaneously
+  </Card>
+
+  <Card title="Dynamic Cross-linking" icon="clock">
+    Time-resolved predictions for stimuli-responsive MINPs (pH, temperature)
+  </Card>
+
+  <Card title="Reaction Kinetics" icon="stopwatch">
+    Incorporate reaction rate constants into scoring function for temporal accuracy
+  </Card>
+</CardGroup>
+
+### Open Problems
+
+<Warning>
+  **Challenges for the community**:
+  1. **Solvent effects**: LNKD currently ignores explicit solvent during prediction (relies on post-MD validation)
+  2. **Stereochemistry**: No explicit handling of chiral centers in cross-linking reactions
+  3. **Template flexibility**: Assumes rigid template during predictions (conformational changes not modeled)
+  4. **Scalability**: Systems >50,000 atoms still challenging (KD-tree limitations)
+</Warning>
+
+---
+
+## Contributing
+
+### How to Get Involved
+
+<Steps>
+  <Step title="Use LNKD in Your Research">
+    Apply LNKD to your systems and share results in GitHub Discussions
+  </Step>
+
+  <Step title="Report Issues">
+    Found a bug? Edge case? Report at [github.com/bderby-chem/LINKD/issues](https://github.com/bderby-chem/LINKD/issues)
+  </Step>
+
+  <Step title="Contribute Code">
+    Implement new features (see [Design Decisions](/developer/architecture/design-decisions) for extension points)
+  </Step>
+
+  <Step title="Write Documentation">
+    Help improve tutorials, add examples, translate docs
+  </Step>
+</Steps>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Research Paper" icon="file-lines" href="/developer/references/references-paper">
+    Original LNKD publication details
+  </Card>
+
+  <Card title="Get Started" icon="rocket" href="/quickstart">
+    Begin using LNKD in 5 minutes
+  </Card>
+
+  <Card title="Join the Community" icon="users" href="https://github.com/bderby-chem/LINKD/discussions">
+    Connect with other LNKD users
+  </Card>
+
+  <Card title="Contribute" icon="code-pull-request" href="https://github.com/bderby-chem/LINKD/blob/main/CONTRIBUTING.md">
+    Help improve LNKD
+  </Card>
+</CardGroup>

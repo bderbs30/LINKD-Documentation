@@ -1,0 +1,453 @@
+---
+title: "Frequently Asked Questions"
+description: "Common questions about using LNKD for cross-linking prediction"
+---
+
+## Getting Started
+
+<AccordionGroup>
+  <Accordion title="What makes an atom 'reactive'?">
+    **Reactive atoms** are atoms you specify that can participate in cross-linking reactions. LNKD doesn't automatically detect them - you must define them based on your chemistry knowledge.
+
+    **Common reactive atoms**:
+    - **Vinyl carbons** (C=C double bonds) for radical polymerization
+    - **Azide nitrogens** (N₃ groups) for click chemistry
+    - **Alkyne carbons** (C≡C triple bonds) for click chemistry
+
+    **Why manual specification?** Chemistry varies widely between polymer systems. LNKD gives you full control over which atoms participate in cross-linking.
+
+    **See**: [Understanding Reactive Atoms](/first-prediction#understanding-reactive-atoms)
+  </Accordion>
+
+  <Accordion title="Can LNKD automatically detect reactive atoms?">
+    **No.** LNKD requires you to explicitly define reactive atoms via text files.
+
+    **Why not automatic?** Different polymer systems use different cross-linking chemistries. For example:
+    - DVB uses vinyl carbons for radical polymerization
+    - Epoxy resins use epoxide groups
+    - Some systems use multiple reactive sites per molecule
+
+    You know your system best - LNKD gives you the flexibility to specify exactly which atoms should cross-link.
+  </Accordion>
+
+  <Accordion title="Can I use LNKD for polymers other than MINPs?">
+    **Yes!** While LNKD was designed for MINPs, it works for any cross-linked polymer system where you can:
+    1. Define reactive atoms
+    2. Specify expected bonding distance (query radius)
+    3. Provide a relaxed 3D structure (PDB file)
+
+    **Other applications**:
+    - Epoxy resins
+    - Hydrogel networks
+    - Thermoset polymers
+    - Crosslinked elastomers
+
+    **Note**: For chemistries other than click/radical, you may need to adjust parameters or extend LNKD. See [Extending Reactions](/developer/extending/extending-reactions).
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Understanding Core vs Surface
+
+<AccordionGroup>
+  <Accordion title="What is the difference between core and surface cross-linking?">
+    These are two distinct chemistry types used in MINP synthesis:
+
+    **Surface Cross-Linking**:
+    - Chemistry: Click chemistry (azide-alkyne cycloaddition)
+    - Location: Outer shell (surfactant molecules)
+    - Creates rigid shell first
+    - Typical query radius: 15 Å
+
+    **Core Cross-Linking**:
+    - Chemistry: Radical polymerization (C-C bonds)
+    - Location: Interior (cross-linker molecules like DVB)
+    - Densifies core second
+    - Typical query radius: 10 Å
+
+    **Why separate?** These reactions happen sequentially in experiments, so LNKD predicts them separately with optimized parameters for each chemistry.
+
+    **See**: [Understanding Core vs Surface](/quickstart#understanding-core-vs-surface-cross-linking)
+  </Accordion>
+
+  <Accordion title="Can I run both core and surface predictions in one command?">
+    **The command already does both!** When you run `predict_for_single_surfactant.py`, you provide both core and surface reactive atom files plus their parameters in a single command:
+
+    ```bash
+    python3 predict_for_single_surfactant.py \
+        structure.pdb \
+        core_reactive.txt -core_QR 10 -core_W 0.03 \
+        sur_reactive.txt -sur_QR 15 -sur_W 0.03 \
+        -o output/
+    ```
+
+    LNKD runs both predictions and outputs separate files:
+    - `core_pair_output.txt`
+    - `surface_pair_output.txt`
+    - `pair_output.txt` (combined)
+
+    **For systems with only one chemistry**: Use an empty text file for the unused chemistry type.
+  </Accordion>
+
+  <Accordion title="My system only has one type of cross-linking. What do I do?">
+    **Solution**: Create an empty file for the unused chemistry type.
+
+    **Example** (only core cross-linking):
+    ```bash
+    # Create empty surface file
+    touch empty_surface.txt
+
+    # Run with empty surface file
+    python3 predict_for_single_surfactant.py \
+        structure.pdb \
+        core_reactive.txt -core_QR 10 -core_W 0.03 \
+        empty_surface.txt -sur_QR 15 -sur_W 0.03 \
+        -o output/
+    ```
+
+    LNKD will only predict core pairs since no surface reactive atoms are defined.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Parameters and Tuning
+
+<AccordionGroup>
+  <Accordion title="How do I choose the right query radius?">
+    **Start with these defaults**:
+    - Core (radical polymerization): 10 Å
+    - Surface (click chemistry): 15 Å
+
+    **Then adjust based on results**:
+
+    | Issue | Solution |
+    |-------|----------|
+    | Coverage too low (<80%) | Increase query radius by 2-3 Å |
+    | Too many pairs, slow runtime | Decrease query radius |
+    | Sparse system (few neighbors) | Increase to 15-20 Å |
+    | Dense, well-packed system | Can use smaller radius (8-10 Å) |
+
+    **Rule of thumb**: Query radius should be 2-3× your expected bond distance. For C-C bonds (~3 Å equilibrium), 10 Å captures atoms up to ~3 bond lengths away.
+
+    **See**: [Query Radius Tuning](/first-prediction#query-radius)
+  </Accordion>
+
+  <Accordion title="What does 'low coverage' mean and how do I fix it?">
+    **Coverage** = percentage of reactive atoms that successfully pair.
+
+    **Formula**: Coverage = (2 × number_of_pairs) / total_reactive_atoms × 100%
+
+    **Good coverage**: 88-95%
+    **Low coverage**: <80%
+
+    **Causes of low coverage**:
+    1. Query radius too small (atoms can't find partners)
+    2. System not well-equilibrated (atoms too far apart)
+    3. Unrealistic reactive atom definitions
+
+    **Fixes**:
+    1. Increase query radius by 2-5 Å
+    2. Run longer MD equilibration before LNKD
+    3. Verify reactive atom definitions match your PDB
+    4. Check system composition (enough reactive atoms?)
+
+    **Note**: Some unpaired atoms are normal (7-10% is typical and matches experimental efficiency).
+  </Accordion>
+
+  <Accordion title="What is isolation weight and when should I change it?">
+    **Isolation weight (W)** controls preference for bonding to chains with fewer existing bonds.
+
+    **Default: 0.03** (recommended for most systems)
+
+    **Effect**:
+    - **W = 0**: Pure distance-based selection (no preference)
+    - **W = 0.03**: Slight preference for isolated chains (balanced)
+    - **W = 0.05-0.10**: Strong preference (prevents clustering)
+    - **W > 0.10**: May reduce overall coverage
+
+    **When to increase W**:
+    - You observe clustering (some chains over-bonded, others isolated)
+    - Want more uniform cross-link distribution
+
+    **When to decrease W**:
+    - Coverage is low and you want to maximize pairing
+    - System is already well-distributed
+
+    **See**: [Isolation Weight Details](/science/algorithm/bond-potential#isolatedness-term)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Output and Results
+
+<AccordionGroup>
+  <Accordion title="Why do surface pairs come in twos?">
+    **Answer**: Click chemistry forms triazole rings with **TWO bonds** per reaction.
+
+    When an azide reacts with an alkyne, it forms a 5-membered ring (triazole) that requires TWO N-C bonds to close:
+    1. One bond from azide nitrogen to first alkyne carbon
+    2. One bond from azide nitrogen to second alkyne carbon
+
+    **In the output**:
+    - You'll see pairs like: `59 1054` and `59 1056` (same azide bonding to both alkyne carbons)
+    - Total surface pairs = 2 × number of click reactions
+
+    **Example**: 232 surface pairs = 116 click reactions (232 ÷ 2)
+
+    **See**: [Click Chemistry Mechanism](/science/chemistry/click-chemistry#triazole-mechanism)
+  </Accordion>
+
+  <Accordion title="What should I do with unpaired radicals?">
+    Unpaired radicals (vinyl carbons that didn't find bonding partners) are listed in `radical_output.txt`.
+
+    **Required action**: Hydrogen saturation (H-saturation)
+    - Add hydrogen atoms to these carbons before MD simulation
+    - Prevents unrealistic chemistry and MD instability
+
+    **Methods**:
+    1. **PyMOL**: `h_add` command on selected atoms
+    2. **Custom script**: Use MDAnalysis or similar tools
+    3. **Manual**: Edit PDB to add H atoms
+
+    **Why necessary?** Radicals have unpaired electrons and are extremely reactive. In MD simulations, this can cause:
+    - Unrealistic bond formation
+    - Simulation crashes
+    - Energy minimization failures
+
+    **See**: [H-Saturation Guide](/science/workflow/phase-2-crosslinking#hydrogen-saturation-of-radicals)
+  </Accordion>
+
+  <Accordion title="LNKD predicted zero pairs. What's wrong?">
+    **Common causes**:
+
+    1. **Reactive atom definitions don't match PDB**
+       - Check atom names are exact (case-sensitive)
+       - Verify residue names match
+       - Solution: Open PDB in text editor, confirm names
+
+    2. **Query radius too small**
+       - Atoms farther than radius won't pair
+       - Solution: Increase `-core_QR` or `-sur_QR` to 15-20 Å
+
+    3. **No valid pairs within chemical constraints**
+       - All reactive atoms on same chain (LNKD requires inter-chain bonding)
+       - Solution: Verify system has multiple chains
+
+    4. **Structure not equilibrated**
+       - Atoms too far apart to bond
+       - Solution: Run MD equilibration first (see Phase 1)
+
+    **Debug steps**:
+    1. Check LNKD terminal output for warnings
+    2. Visualize reactive atoms in PyMOL to ensure they exist
+    3. Check distances between atoms (should be <20 Å for potential pairs)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Chemistry and Methodology
+
+<AccordionGroup>
+  <Accordion title="What is a 'chain' in LNKD context?">
+    A **chain** is a single polymer molecule in your system, identified by a unique chain ID in the PDB file.
+
+    **In MINPs**, chains include:
+    - Surfactant molecules (outer shell)
+    - Cross-linker molecules (DVB, EGDMA, etc.)
+    - Template molecule (binding target)
+    - Monoazide linkers
+
+    **LNKD constraint**: Cross-links only form **between chains**, never within a single chain.
+
+    **Why?** Intra-chain bonding would create small loops instead of a network. Cross-linked polymers require inter-chain bonding to form 3D networks.
+
+    **PDB chain identification**: Column 22 of ATOM lines contains the chain ID (A, B, C, etc.)
+  </Accordion>
+
+  <Accordion title="How does LNKD know which pairs are chemically valid?">
+    LNKD enforces several chemical constraints during prediction:
+
+    **Constraint 1: Same-chain exclusion**
+    - Atoms on the same polymer chain cannot cross-link
+    - Checked by comparing chain IDs
+
+    **Constraint 2: Bonding state**
+    - Each reactive site can bond only once
+    - Once bonded, atom is marked unavailable
+
+    **Constraint 3: Chain connectivity limits**
+    - Prevents same two chains from bonding multiple times
+    - Tracked via `chain.bonded_chains` set
+
+    **Constraint 4: Distance**
+    - Atoms beyond query radius have probability = 0
+    - Only neighbors within radius are considered
+
+    All constraints are built into the bond potential function - invalid pairs automatically get P = 0.
+
+    **See**: [Chemical Constraint Validation](/science/algorithm/algorithm-concepts#chemical-constraint-validation)
+  </Accordion>
+
+  <Accordion title="Is LNKD's prediction deterministic?">
+    **Yes**, LNKD is deterministic given the same inputs.
+
+    **Same inputs** = same results:
+    - Same PDB structure
+    - Same reactive atom definitions
+    - Same parameter values (QR, W)
+    - Same random seed (if stochastic elements added)
+
+    **Why deterministic?** The greedy algorithm always selects the highest-probability pair at each step, and the bond potential calculation is deterministic.
+
+    **Variability sources** (if different inputs):
+    - Different MD equilibration runs → different atom positions
+    - Different parameter values
+    - Different PDB input structure
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Computational and Performance
+
+<AccordionGroup>
+  <Accordion title="How long should LNKD take to run?">
+    **Typical runtime** depends on system size:
+
+    | Reactive Atoms | Typical Runtime |
+    |----------------|-----------------|
+    | 100-500 | <1 second |
+    | 500-1000 (typical MINP) | 1-5 seconds |
+    | 1000-2000 | 5-15 seconds |
+    | >2000 | May take longer, consider reducing query radius |
+
+    **If much slower**:
+    - Query radius too large (try reducing to 10-12 Å)
+    - Very large system (>5000 reactive atoms)
+    - Check CPU usage (should use 1 core at 100%)
+
+    **Remember**: LNKD runtime is negligible compared to MD simulation time (hours to days).
+  </Accordion>
+
+  <Accordion title="Can I speed up LNKD predictions?">
+    LNKD is already optimized with O(n log n) algorithms. Further speedup options:
+
+    **Significant speedup**:
+    1. **Reduce query radius** (biggest impact)
+       - Smaller radius = fewer candidate pairs
+       - Try 8-10 Å instead of 15 Å if coverage allows
+
+    **Marginal speedup**:
+    2. Reduce isolation weight to 0 (skips isolatedness calculation)
+    3. Use fewer reactive atoms (if chemically appropriate)
+
+    **Not recommended**:
+    - Parallelization: Selection loop is inherently sequential
+    - Different language: Python overhead is minimal (90% time in C libraries)
+
+    **Bottom line**: LNKD is already fast enough for practical use. Focus on optimizing your MD workflow instead.
+  </Accordion>
+
+  <Accordion title="What does O(n log n) complexity mean in practice?">
+    **O(n log n)** means doubling the system size increases runtime by approximately 2.1× (not 4× like O(n²) methods).
+
+    **Practical example**:
+    - 500 atoms: ~2 seconds
+    - 1000 atoms: ~4.2 seconds (not 8 seconds)
+    - 2000 atoms: ~8.4 seconds (not 32 seconds)
+
+    **Comparison to O(n²) brute force**:
+    - 500 atoms: LNKD 2s vs Brute 50s (~25× faster)
+    - 1000 atoms: LNKD 4s vs Brute 200s (~50× faster)
+    - 2000 atoms: LNKD 8s vs Brute 800s (~100× faster)
+
+    The advantage grows with system size!
+
+    **See**: [Computational Scaling](/science/why-lnkd#computational-scaling)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Integration and Workflow
+
+<AccordionGroup>
+  <Accordion title="How do I integrate LNKD predictions into MD simulations?">
+    LNKD predictions are used in **constrained MD simulations** with PLUMED distance restraints:
+
+    **Workflow**:
+    1. **Run LNKD** → get `pair_output.txt`
+    2. **Update topology** → add bonds to GROMACS `.top` file
+    3. **Generate PLUMED input** → distance restraints for each pair
+    4. **Run constrained MD** → enforce predicted bonds (5-10 ns)
+
+    **Why constrained MD?** Predicted bonds don't form instantly - you need to give the system time to relax into bonded configurations while preventing atoms from drifting apart.
+
+    **After MD**: Bonds are physically formed and structure is equilibrated.
+
+    **See**: [Phase 2: Cross-Linking Protocol](/science/workflow/phase-2-crosslinking)
+  </Accordion>
+
+  <Accordion title="Do I need to run MD before LNKD?">
+    **Yes**, LNKD requires a relaxed 3D structure.
+
+    **Why?** LNKD predicts based on spatial proximity. If your initial structure has:
+    - Overlapping atoms (from poor assembly)
+    - Unrealistic geometries
+    - Large voids between molecules
+
+    LNKD predictions will be poor.
+
+    **Recommended pre-LNKD workflow**:
+    1. Assemble system (PACKMOL or similar)
+    2. Energy minimization (steep descent)
+    3. NVT equilibration (5-10 ns)
+    4. NPT equilibration (10-50 ns)
+    5. Run LNKD on equilibrated structure
+
+    **See**: [Phase 1: Micelle Preparation](/science/workflow/phase-1-micelle)
+  </Accordion>
+
+  <Accordion title="Can I use LNKD with other MD packages (AMBER, NAMD)?">
+    **Yes**, but you'll need to adapt the workflow.
+
+    **LNKD input** (universal):
+    - PDB structure file (all MD packages can export)
+    - Reactive atom text files (you create)
+
+    **LNKD output** (universal):
+    - Text files with atom pairs
+
+    **MD package-specific parts**:
+    - **Topology update**: Format varies (GROMACS `.top`, AMBER `.prmtop`, etc.)
+    - **Distance restraints**: GROMACS uses PLUMED, AMBER uses restraint files, NAMD uses colvar
+
+    **See**: [Extending Integration](/developer/extending/extending-integration) for other MD packages
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Still Have Questions?
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/sdonglab/LNKD/issues">
+    Report bugs or ask questions
+  </Card>
+
+  <Card title="Glossary" icon="book" href="/glossary">
+    Technical term definitions
+  </Card>
+
+  <Card title="Algorithm Details" icon="gear" href="/science/algorithm/how-it-works">
+    Step-by-step algorithm walkthrough
+  </Card>
+
+  <Card title="Research Paper" icon="file-lines" href="https://pubs.acs.org/doi/10.1021/acs.jcim.5c01376">
+    Full methodology and validation
+  </Card>
+</CardGroup>

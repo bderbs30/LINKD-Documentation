@@ -1,0 +1,163 @@
+---
+title: "API: Atom & Chain Classes"
+description: "Complete reference for molecular components"
+---
+
+## Chain Class
+
+**Location**: `pair_prediction/tools/pdb.py:185-250`
+
+### Constructor
+
+```python
+class Chain:
+    def __init__(self, chain_id, chain_type):
+        """
+        Args:
+            chain_id (str): PDB chain ID ("A", "B", ...)
+            chain_type (str): Residue name ("DVO", "SUR", "MON")
+
+        Attributes:
+            chain_id (str): Identifier
+            chain_type (str): Chemical type
+            atoms (dict): {atom_name: Atom}
+            bonded_chains (set): Set of bonded chain IDs
+        """
+```
+
+---
+
+### Methods
+
+```python
+def add_atom(self, atom):
+    """Add atom to chain."""
+
+def add_bonded_chain(self, other_chain_id):
+    """Record bonding to another chain."""
+
+def get_connectivity(self, max_connectivity=8):
+    """
+    Return isolatedness score.
+
+    Returns:
+        int: max_connectivity - len(bonded_chains)
+    """
+
+def is_saturated(self, max_connectivity=8):
+    """
+    Check if at max bonding capacity.
+
+    Returns:
+        bool: True if len(bonded_chains) >= max_connectivity
+    """
+```
+
+---
+
+## Atom Class
+
+**Location**: `pair_prediction/tools/pdb.py:255-310`
+
+### Constructor
+
+```python
+class Atom:
+    def __init__(self, serial, name, coords, chain_id):
+        """
+        Args:
+            serial (int): Atom index (1-indexed)
+            name (str): Atom name ("CU", "CV", "N01")
+            coords (np.ndarray): [x, y, z] in Angstroms
+            chain_id (str): Parent chain ID
+
+        Attributes:
+            serial (int): Unique ID
+            name (str): Atom type
+            coords (np.ndarray): 3D position
+            chain_id (str): Parent reference
+            is_bonded_external (bool): Bonded to other chain?
+        """
+```
+
+---
+
+### Methods
+
+```python
+def distance_to(self, other_atom):
+    """
+    Calculate distance to another atom.
+
+    Returns:
+        float: Euclidean distance (Angstroms)
+    """
+
+def mark_bonded(self):
+    """Mark atom as externally bonded."""
+
+def to_pdb_line(self):
+    """
+    Format as PDB ATOM line.
+
+    Returns:
+        str: PDB-formatted line
+    """
+```
+
+---
+
+## Usage Examples
+
+### Chain Example
+
+```python
+# Create chain
+chain = Chain("A", "DVO")
+
+# Add atoms
+atom1 = Atom(1, "CU", [1.0, 2.0, 3.0], "A")
+atom2 = Atom(2, "CV", [4.0, 5.0, 6.0], "A")
+chain.add_atom(atom1)
+chain.add_atom(atom2)
+
+# Track bonding
+chain.add_bonded_chain("B")
+chain.add_bonded_chain("C")
+
+# Check state
+print(chain.get_connectivity(8))  # 6 (8 - 2)
+print(chain.is_saturated(8))      # False
+```
+
+---
+
+### Atom Example
+
+```python
+# Create atoms
+atom1 = Atom(59, "N01", [10.5, 20.3, 15.8], "A")
+atom2 = Atom(1054, "C14", [13.2, 22.1, 16.5], "B")
+
+# Calculate distance
+dist = atom1.distance_to(atom2)
+print(f"Distance: {dist:.2f} Å")
+
+# Mark bonded
+atom1.mark_bonded()
+print(atom1.is_bonded_external)  # True
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API: Utilities" icon="wrench" href="/developer/api/api-utilities">
+    Helper functions and algorithms
+  </Card>
+
+  <Card title="Core Classes" icon="cube" href="/developer/architecture/core-classes">
+    Detailed class documentation
+  </Card>
+</CardGroup>

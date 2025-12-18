@@ -1,0 +1,379 @@
+---
+title: "Extending: Custom Reaction Types"
+description: "Add support for new cross-linking chemistries"
+---
+
+## Overview
+
+LNKD's architecture supports adding custom reaction types beyond click chemistry and radical polymerization.
+
+**Use cases**:
+- Diels-Alder cycloaddition
+- Disulfide bond formation
+- Boronate ester cross-linking
+- Michael addition
+
+---
+
+## Approach 1: Subclass BondPredictor
+
+**Best for**: Reactions with similar geometry but different parameters
+
+### Example: Diels-Alder Predictor
+
+```python
+from tools.predict_bonds import BondPredictor
+from tools.utils import bond_potential
+
+class DielsAlderPredictor(BondPredictor):
+    """
+    Predict Diels-Alder cycloadditions between dienes and dienophiles.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Diels-Alder-specific parameters
+        self.dist_equilibrium = 2.5  # Closer approach for cycloaddition
+        self.dist_variance = 4.0     # Tighter distribution
+
+    def calculate_bond_potential(self, pair):
+        """
+        Override to use Diels-Alder parameters.
+        """
+        chain1 = self.pdb.chains[pair.atom1.chain_id]
+        chain2 = self.pdb.chains[pair.atom2.chain_id]
+        iso = chain1.get_connectivity() + chain2.get_connectivity()
+
+        prob = bond_potential(
+            atom_dist=pair.distance,
+            dist_equilibrium=self.dist_equilibrium,  # 2.5 Å instead of 3.0
+            dist_variance=self.dist_variance,        # 4.0 instead of 6.25
+            iso_weight=self.isolation_weight,
+            isolatedness=iso,
+            Cmax=8
+        )
+        return prob
+```
+
+**Usage**:
+```python
+predictor = DielsAlderPredictor(
+    pdb_file='micelle.pdb',
+    reactive_file='diene_dienophile.txt',  # Define diene/dienophile atoms
+    query_radius=12.0,  # Slightly larger for cycloaddition
+    isolation_weight=0.03
+)
+predictor.predict()
+predictor.write_output('diels_alder_pairs.txt')
+```
+
+---
+
+## Approach 2: Custom Selection Logic
+
+**Best for**: Reactions with geometric constraints (stereochemistry, angles)
+
+### Example: Stereoselective Bonding
+
+```python
+class StereoSelectivePredictor(BondPredictor):
+    """
+    Enforce stereochemical constraints during selection.
+    """
+
+    def is_valid_stereochemistry(self, pair):
+        """
+        Check if pair satisfies stereochemical requirements.
+
+        Example: Verify approach angle for backside attack (SN2).
+        """
+        # Get neighboring atoms
+        atom1_neighbors = self.get_neighbors(pair.atom1)
+        atom2_neighbors = self.get_neighbors(pair.atom2)
+
+        # Calculate approach angle
+        angle = self.calculate_approach_angle(
+            pair.atom1, pair.atom2,
+            atom1_neighbors[0]  # Leaving group
+        )
+
+        # Backside attack requires 180° ± 20°
+        return 160 <= angle <= 200
+
+    def bond_selection_loop(self):
+        """
+        Override to add stereochemical filter.
+        """
+        while self.probability_heap:
+            neg_prob, pair_idx, best_pair = heapq.heappop(self.probability_heap)
+            probability = -neg_prob
+
+            if probability < 0.001:
+                break
+
+            if best_pair.atom1.is_bonded_external or best_pair.atom2.is_bonded_external:
+                continue
+
+            # NEW: Check stereochemistry
+            if not self.is_valid_stereochemistry(best_pair):
+                continue  # Skip geometrically invalid pair
+
+            # Accept pair (rest same as parent class)
+            self.pdb.add_pair(best_pair)
+            # ... (update states, recalculate, etc.)
+```
+
+---
+
+## Approach 3: Custom Reactive Atom Logic
+
+**Best for**: Complex reactive sites (multiple atoms per reactive group)
+
+### Example: Disulfide Bond Formation
+
+```python
+class DisulfidePredictor(BondPredictor):
+    """
+    Predict disulfide bonds between cysteine sulfur atoms.
+    """
+
+    def init_reactive_atoms(self, reactive_atoms_dict):
+        """
+        Override to enforce cysteine-specific logic.
+        """
+        self.reactive_atoms = []
+
+        for chain_id, chain in self.pdb.chains.items():
+            for atom_name, atom in chain.atoms.items():
+                # Only sulfur atoms in cysteine residues
+                if atom_name == 'SG' and chain.chain_type == 'CYS':
+                    # Check oxidation state (skip if already in disulfide)
+                    if not self.is_in_disulfide(atom):
+                        self.reactive_atoms.append(atom)
+
+    def is_in_disulfide(self, sulfur_atom):
+        """
+        Check if sulfur already in disulfide bond.
+
+        Returns:
+            bool: True if S-S bond exists in topology
+        """
+        # Check PDB SSBOND records or bond list
+        for bond in self.pdb.bonds:
+            if sulfur_atom.serial in [bond.atom1, bond.atom2]:
+                return True
+        return False
+
+    def calculate_bond_potential(self, pair):
+        """
+        Disulfide-specific scoring.
+        """
+        # Distance: S-S bond ~2.05 Å
+        dist_equilibrium = 2.05
+        dist_variance = 1.0  # Tight tolerance
+
+        # Angle: C-S-S angle ~105°
+        angle_penalty = self.calculate_angle_penalty(pair)
+
+        # Base potential
+        prob = bond_potential(
+            atom_dist=pair.distance,
+            dist_equilibrium=dist_equilibrium,
+            dist_variance=dist_variance,
+            iso_weight=self.isolation_weight,
+            isolatedness=pair.calculate_isolatedness(self.pdb),
+            Cmax=8
+        )
+
+        # Apply angle penalty
+        prob *= angle_penalty
+
+        return prob
+
+    def calculate_angle_penalty(self, pair):
+        """
+        Penalize non-ideal C-S-S angles.
+        """
+        # Get C atoms bonded to each S
+        ca1 = self.get_ca_bonded_to_sulfur(pair.atom1)
+        ca2 = self.get_ca_bonded_to_sulfur(pair.atom2)
+
+        # Calculate C-S-S angles
+        angle1 = self.calculate_angle(ca1, pair.atom1, pair.atom2)
+        angle2 = self.calculate_angle(ca2, pair.atom2, pair.atom1)
+
+        # Ideal: 105°
+        deviation1 = abs(angle1 - 105)
+        deviation2 = abs(angle2 - 105)
+
+        # Gaussian penalty
+        penalty = np.exp(-(deviation1**2 + deviation2**2) / 200)
+        return penalty
+```
+
+---
+
+## Reactive File Formats
+
+### Standard Format
+
+```text
+# core_reactive.txt
+CU  DVO
+CV  DVO
+```
+
+### Extended Format (Custom Attributes)
+
+```text
+# Format: ATOM_NAME RESIDUE_NAME [OPTIONAL_ATTRIBUTES]
+
+# Diels-Alder
+C1  DIENE     role=diene  conjugation=4
+C2  DIENOPH   role=dienophile  conjugation=2
+
+# Disulfide
+SG  CYS       oxidation_state=reduced
+```
+
+**Parse extended format**:
+```python
+def get_reactive_str_representation(self, reactive_file):
+    reactive_dict = {}
+
+    with open(reactive_file) as f:
+        for line in f:
+            if line.strip() and not line.startswith('#'):
+                parts = line.strip().split()
+                atom_name = parts[0]
+                residue = parts[1]
+
+                # Parse optional attributes
+                attributes = {}
+                for attr in parts[2:]:
+                    key, value = attr.split('=')
+                    attributes[key] = value
+
+                reactive_dict[atom_name] = {
+                    'residue': residue,
+                    'attributes': attributes
+                }
+
+    return reactive_dict
+```
+
+---
+
+## Testing Custom Predictors
+
+```python
+def test_diels_alder_predictor():
+    """
+    Unit test for Diels-Alder predictions.
+    """
+    # Small test system
+    predictor = DielsAlderPredictor(
+        pdb_file='test_diene_dienophile.pdb',
+        reactive_file='test_reactive.txt',
+        query_radius=12.0,
+        isolation_weight=0.03
+    )
+
+    # Run prediction
+    reactive_dict = predictor.get_reactive_str_representation('test_reactive.txt')
+    predictor.init_reactive_atoms(reactive_dict)
+    # ... (complete workflow)
+
+    # Assertions
+    assert len(predictor.pdb.pairs) >= 5  # Expect at least 5 pairs
+    assert all(2.0 <= p.distance <= 3.5 for p in predictor.pdb.pairs)  # Distance range
+
+    print("DielsAlderPredictor test passed!")
+
+if __name__ == '__main__':
+    test_diels_alder_predictor()
+```
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="1. Keep Parameters Tunable">
+    **Don't hardcode** chemistry-specific values in class methods.
+
+    **Do**: Store as instance variables
+    ```python
+    def __init__(self, *args, dist_eq=2.5, dist_var=4.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dist_equilibrium = dist_eq
+        self.dist_variance = dist_var
+    ```
+
+    **Allows**: Easy parameter tuning without code changes
+  </Accordion>
+
+  <Accordion title="2. Document Chemistry Assumptions">
+    **Example docstring**:
+    ```python
+    class DielsAlderPredictor(BondPredictor):
+        """
+        Predict Diels-Alder [4+2] cycloadditions.
+
+        Chemistry:
+            - Diene: 4 π-electron system
+            - Dienophile: 2 π-electron system
+            - Concerted mechanism (no radicals)
+
+        Geometry:
+            - Approach distance: 2.3-2.7 Å
+            - Suprafacial orientation
+            - Syn addition preferred
+
+        Parameters:
+            dist_equilibrium: 2.5 Å (transition state distance)
+            query_radius: 12 Å (captures reactive conformations)
+        """
+    ```
+  </Accordion>
+
+  <Accordion title="3. Validate with Known Systems">
+    **Test on literature examples** before production use.
+
+    Example: Anthracene + maleic anhydride (well-studied Diels-Alder)
+  </Accordion>
+
+  <Accordion title="4. Provide Example Reactive Files">
+    **Include** in repository:
+    ```
+    examples/
+      diels_alder/
+        diene_dienophile_reactive.txt
+        anthracene_maleic.pdb
+        README.md
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Extending Constraints" icon="link" href="/developer/extending/extending-constraints">
+    Custom MD constraint generation
+  </Card>
+
+  <Card title="Integration Guide" icon="code" href="/developer/extending/extending-integration">
+    Integrate LNKD with other tools
+  </Card>
+
+  <Card title="Design Decisions" icon="lightbulb" href="/developer/architecture/design-decisions">
+    Why LNKD is designed for extension
+  </Card>
+
+  <Card title="API: Predict Bonds" icon="book" href="/developer/api/api-predict-bonds">
+    Base class methods to override
+  </Card>
+</CardGroup>

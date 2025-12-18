@@ -1,0 +1,339 @@
+---
+title: "API: Utilities"
+description: "Helper functions and algorithms"
+---
+
+## Module Overview
+
+**Location**: `pair_prediction/tools/utils.py`
+
+**Purpose**: Shared utility functions for coordinate manipulation, filtering, and bond potential calculation
+
+---
+
+## Coordinate Functions
+
+### atoms_to_coords()
+
+```python
+def atoms_to_coords(atom_list):
+    """
+    Convert list of Atom objects to NumPy coordinate array.
+
+    Args:
+        atom_list (list): List of Atom objects
+
+    Returns:
+        np.ndarray: Shape (n_atoms, 3), coordinates in Angstroms
+
+    Example:
+        >>> coords = atoms_to_coords(reactive_atoms)
+        >>> print(coords.shape)
+        (780, 3)
+        >>> print(coords[0])
+        [12.345  6.789  0.123]
+    """
+```
+
+**Implementation**:
+```python
+import numpy as np
+
+def atoms_to_coords(atom_list):
+    coords = np.array([atom.coords for atom in atom_list])
+    return coords
+```
+
+---
+
+### calculate_distance_matrix()
+
+```python
+def calculate_distance_matrix(coords):
+    """
+    Calculate pairwise distance matrix.
+
+    Args:
+        coords (np.ndarray): Shape (n, 3)
+
+    Returns:
+        np.ndarray: Shape (n, n), distances[i, j] = distance(i, j)
+
+    Example:
+        >>> dists = calculate_distance_matrix(coords)
+        >>> print(dists[0, 1])  # Distance between atoms 0 and 1
+        3.45
+    """
+```
+
+**Implementation**:
+```python
+from scipy.spatial.distance import cdist
+
+def calculate_distance_matrix(coords):
+    return cdist(coords, coords, metric='euclidean')
+```
+
+---
+
+## Filtering Functions
+
+### remove_1st_and_chain()
+
+```python
+def remove_1st_and_chain(indices, distances, reactive_atoms):
+    """
+    Filter KD-tree results to remove invalid pairs.
+
+    Removes:
+        1. Self-references (first index)
+        2. Same-chain pairs (intra-chain bonding forbidden)
+
+    Args:
+        indices (list): Neighbor indices from KD-tree
+        distances (list): Corresponding distances
+        reactive_atoms (list): Atom objects
+
+    Returns:
+        tuple: (filtered_indices, filtered_distances)
+
+    Example:
+        >>> indices_f, distances_f = remove_1st_and_chain(indices, distances, atoms)
+        >>> # Original: 12 neighbors including self
+        >>> # Filtered: 8 neighbors (removed self + 3 same-chain)
+    """
+```
+
+**Implementation**:
+```python
+def remove_1st_and_chain(indices, distances, reactive_atoms):
+    indices_filtered = []
+    distances_filtered = []
+
+    for i, (idx_list, dist_list) in enumerate(zip(indices, distances)):
+        atom_i = reactive_atoms[i]
+        chain_i = atom_i.chain_id
+
+        valid_idx = []
+        valid_dist = []
+
+        for j, (idx, dist) in enumerate(zip(idx_list, dist_list)):
+            if j == 0:  # Skip self-reference
+                continue
+
+            atom_j = reactive_atoms[idx]
+            if atom_j.chain_id == chain_i:  # Skip same chain
+                continue
+
+            valid_idx.append(idx)
+            valid_dist.append(dist)
+
+        indices_filtered.append(valid_idx)
+        distances_filtered.append(valid_dist)
+
+    return indices_filtered, distances_filtered
+```
+
+---
+
+## Bond Potential Function
+
+### bond_potential()
+
+```python
+def bond_potential(atom_dist, dist_equilibrium, dist_variance,
+                   iso_weight, isolatedness, Cmax):
+    """
+    Calculate bond potential for a pair.
+
+    Formula:
+        P = (exp(-((d - d_eq)^2) / (2*σ^2)) + w*I) / (1 + w*C_max)
+
+    Args:
+        atom_dist (float): Distance between atoms (Å)
+        dist_equilibrium (float): Ideal bond distance (3.0 Å)
+        dist_variance (float): Variance in distance (6.25)
+        iso_weight (float): Isolatedness weight (0.01-0.10)
+        isolatedness (int): Combined isolatedness (0-16)
+        Cmax (int): Max connectivity (8)
+
+    Returns:
+        float: Bond potential (0 to ~1)
+
+    Example:
+        >>> prob = bond_potential(
+        ...     atom_dist=3.5,
+        ...     dist_equilibrium=3.0,
+        ...     dist_variance=6.25,
+        ...     iso_weight=0.03,
+        ...     isolatedness=14,
+        ...     Cmax=8
+        ... )
+        >>> print(prob)
+        0.847
+    """
+```
+
+**Implementation**:
+```python
+import numpy as np
+
+def bond_potential(atom_dist, dist_equilibrium, dist_variance,
+                   iso_weight, isolatedness, Cmax):
+    # Gaussian distance term
+    gaussian = np.exp(-((atom_dist - dist_equilibrium) ** 2) / (2 * dist_variance))
+
+    # Numerator: distance + isolatedness
+    numerator = gaussian + (iso_weight * isolatedness)
+
+    # Denominator: normalization
+    denominator = 1 + iso_weight * Cmax
+
+    return numerator / denominator
+```
+
+---
+
+## File I/O Functions
+
+### read_reactive_file()
+
+```python
+def read_reactive_file(filename):
+    """
+    Parse reactive atom definitions.
+
+    Format: ATOM_NAME RESIDUE_NAME (space-separated)
+
+    Args:
+        filename (str): Path to reactive file
+
+    Returns:
+        dict: {atom_name: residue_name}
+
+    Example:
+        >>> reactive = read_reactive_file('core_reactive.txt')
+        >>> print(reactive)
+        {'CU': 'DVO', 'CV': 'DVO'}
+    """
+```
+
+**Implementation**:
+```python
+def read_reactive_file(filename):
+    reactive_dict = {}
+    with open(filename) as f:
+        for line in f:
+            if line.strip() and not line.startswith('#'):
+                atom_name, residue = line.strip().split()
+                reactive_dict[atom_name] = residue
+    return reactive_dict
+```
+
+---
+
+### write_pair_file()
+
+```python
+def write_pair_file(pairs, filename):
+    """
+    Write pairs to output file.
+
+    Format: serial1 serial2 (one per line)
+
+    Args:
+        pairs (list): Pair objects
+        filename (str): Output path
+
+    Example:
+        >>> write_pair_file(selected_pairs, 'output.txt')
+    """
+```
+
+**Implementation**:
+```python
+def write_pair_file(pairs, filename):
+    with open(filename, 'w') as f:
+        for pair in pairs:
+            f.write(f"{pair.atom1.serial} {pair.atom2.serial}\n")
+```
+
+---
+
+## Statistical Functions
+
+### calculate_coverage()
+
+```python
+def calculate_coverage(n_pairs, n_reactive_atoms):
+    """
+    Calculate bonding coverage percentage.
+
+    Args:
+        n_pairs (int): Number of bonded pairs
+        n_reactive_atoms (int): Total reactive atoms
+
+    Returns:
+        float: Coverage percentage (0-100)
+
+    Example:
+        >>> coverage = calculate_coverage(142, 320)
+        >>> print(coverage)
+        88.75  # 142 pairs × 2 atoms = 284 bonded / 320 total
+    """
+```
+
+**Implementation**:
+```python
+def calculate_coverage(n_pairs, n_reactive_atoms):
+    bonded_atoms = n_pairs * 2
+    coverage = (bonded_atoms / n_reactive_atoms) * 100
+    return coverage
+```
+
+---
+
+## Complete Example
+
+```python
+from tools.utils import *
+
+# Convert atoms to coordinates
+coords = atoms_to_coords(reactive_atoms)
+
+# Build distance matrix (optional, for analysis)
+dist_matrix = calculate_distance_matrix(coords)
+
+# Filter KD-tree results
+indices_f, distances_f = remove_1st_and_chain(
+    indices, distances, reactive_atoms
+)
+
+# Calculate bond potential
+prob = bond_potential(
+    atom_dist=3.5,
+    dist_equilibrium=3.0,
+    dist_variance=6.25,
+    iso_weight=0.03,
+    isolatedness=14,
+    Cmax=8
+)
+
+# Calculate coverage
+coverage = calculate_coverage(n_pairs=142, n_reactive_atoms=320)
+print(f"Coverage: {coverage:.1f}%")
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API: Predict Bonds" icon="code" href="/developer/api/api-predict-bonds">
+    Prediction engine API using these utilities
+  </Card>
+
+  <Card title="Bond Potential" icon="function" href="/science/algorithm/bond-potential">
+    Mathematical derivation of bond_potential()
+  </Card>
+</CardGroup>
